@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lineage Analyzer</title>
+  <link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <form id="loginForm" class="login-card">
+      <h1>Lineage Analyzer</h1>
+      <p>Войдите, чтобы открыть интерфейс анализа Data Lineage.</p>
+      <label class="field">Пользователь<input id="loginUsername" name="username" autocomplete="username" required></label>
+      <label class="field">Пароль<input id="loginPassword" name="password" type="password" autocomplete="current-password" required></label>
+      <div id="loginError" class="sync-error" hidden></div>
+      <button id="loginButton" type="submit">Войти</button>
+    </form>
+  </section>
+
+  <main id="appShell" class="app-shell" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <h1>Lineage Analyzer</h1>
+        <p>Визуализация жизненного цикла данных</p>
+      </div>
+      <div class="topbar-actions">
+        <span id="currentUser" class="current-user"></span>
+        <button id="criticalToggleButton" type="button">Критические узлы</button>
+        <button id="syncPanelButton" type="button">Синхронизация</button>
+        <button id="refreshButton" type="button">Обновить граф</button>
+        <button id="logoutButton" type="button">Выйти</button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <section class="stats">
+        <div id="tableCountCard" class="stats-card active" role="button" tabindex="0"><strong id="tableCount">0</strong><span>таблицы</span></div>
+        <div id="edgeCountCard" class="stats-card" role="button" tabindex="0"><strong id="edgeCount">0</strong><span>конвейеры</span></div>
+      </section>
+      <div class="list-title"><span>Объекты данных</span></div>
+      <div id="tableList" class="table-list"></div>
+    </aside>
+
+    <section class="graph-panel">
+      <div class="canvas-wrap"><svg id="graph" role="img" aria-label="Интерактивный граф Data Lineage"></svg></div>
+    </section>
+
+    <aside class="details">
+      <section class="details-section">
+        <h2 id="detailsTitle"></h2>
+        <div id="detailsTabs" class="details-tabs" hidden>
+          <button type="button" data-mode="properties">Свойства</button>
+          <button type="button" data-mode="versions">Версии</button>
+          <button type="button" data-mode="impact">Отчет изменений</button>
+        </div>
+        <div id="selectedTable" class="empty">Нет выбранного объекта</div>
+      </section>
+      <section class="details-section">
+        <div class="section-title"><h2 id="attributeTitle"></h2><span id="attributeCount">0</span></div>
+        <div id="attributeList" class="attribute-table empty">Нет выбранного объекта</div>
+      </section>
+      <section class="details-section">
+        <div class="section-title"><button id="downstreamToggle" type="button" class="collapse-toggle"><span id="downstreamTitle"></span><span id="downstreamCount">0</span></button></div>
+        <div id="downstreamList" class="downstream-list empty">Нет выбранного объекта</div>
+      </section>
+    </aside>
+
+    <section id="syncPanel" class="sync-panel" hidden>
+      <header class="sync-header">
+        <div><h2>Синхронизация PostgreSQL</h2><p>Настройка обновления модели данных по расписанию.</p></div>
+        <button id="syncCloseButton" type="button" class="ghost-button">Закрыть</button>
+      </header>
+      <div id="syncError" class="sync-error" hidden></div>
+      <form id="syncForm" class="sync-form">
+        <input id="syncId" type="hidden">
+        <div class="sync-form-grid">
+          <label class="field sync-name-field">Название<input id="syncName" name="name" required placeholder="Public schema sync"></label>
+          <label class="switch-field sync-enabled-field"><input id="syncEnabled" name="enabled" type="checkbox" checked><span class="switch-control" aria-hidden="true"></span><span>Включено</span></label>
+          <label class="field">Тип источника<select id="syncSourceType" name="source_type"><option value="postgresql">PostgreSQL</option><option value="greenplum">Greenplum</option><option value="clickhouse">ClickHouse</option><option value="hadoop_spark">Hadoop / Spark</option></select></label>
+          <label class="field sync-dsn-field">DSN подключения<input id="syncDsn" name="warehouse_dsn" placeholder="postgresql://user:password@host:5432/"></label>
+          <label class="field">База данных / namespace<input id="syncNamespace" name="namespace" required placeholder="analytics"></label>
+          <label class="field">Схема<input id="syncSchema" name="schema_name" required placeholder="public"></label>
+          <label class="field">Cron<input id="syncCron" name="cron_expression" placeholder="0 * * * *"></label>
+        </div>
+        <div class="form-actions"><button id="syncSaveButton" type="submit">Сохранить</button></div>
+      </form>
+      <div class="list-title"><span>Расписания</span><button id="syncReloadButton" type="button" class="ghost-button">Обновить</button></div>
+      <div id="syncList" class="sync-list"></div>
+    </section>
+  </main>
+  <script src="/ui/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+[project]
+name = "lineage-analyzer"
+version = "0.1.0"
+description = "Subsystem for collecting and analyzing data lineage metadata in corporate data warehouses."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Diploma project" }]
+dependencies = [
+    "psycopg[binary]>=3.1,<4",
+    "sqlglot>=26,<27",
+    "APScheduler>=3.10,<4",
+    "pyspark>=3.5,<4",
+]
+
+[project.scripts]
+lineage-analyzer = "lineage_analyzer.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["lineage_analyzer*"]
+
+[tool.setuptools.package-data]
+lineage_analyzer = ["ui/*"]

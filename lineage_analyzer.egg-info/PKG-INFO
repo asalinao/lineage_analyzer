@@ -1,0 +1,105 @@
+Metadata-Version: 2.4
+Name: lineage-analyzer
+Version: 0.1.0
+Summary: Subsystem for collecting and analyzing data lineage metadata in corporate data warehouses.
+Author: Diploma project
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: psycopg[binary]<4,>=3.1
+Requires-Dist: sqlglot<27,>=26
+Requires-Dist: APScheduler<4,>=3.10
+
+# Lineage Analyzer
+
+Программная часть дипломного проекта: подсистема сбора, хранения и анализа метаданных жизненного цикла данных в корпоративном хранилище.
+
+## Возможности
+
+- прием событий OpenLineage в формате JSON;
+- сохранение истории событий выполнения задач;
+- версионное хранение таблиц, атрибутов, задач и трансформаций;
+- синхронизация структуры таблиц из PostgreSQL-хранилища;
+- анализ зависимых таблиц и атрибутов на основе обхода графа;
+- расчет критических узлов конвейера данных по влиянию, потере связности и частоте использования;
+- CLI, JSON API и web-интерфейс графа Data Lineage.
+
+## Требования
+
+- Python 3.11+;
+- PostgreSQL 13+;
+- Python-драйвер `psycopg`.
+
+Установка зависимостей:
+
+```bash
+python3 -m pip install -e .
+```
+
+Локальная БД метаданных описана в `docker-compose.yml`, а параметры подключения хранятся отдельно в локальном `.env`.
+
+```bash
+cp .env.example .env
+```
+
+После этого заполните значения в `.env` и запустите PostgreSQL:
+
+```bash
+docker compose up -d postgres
+```
+
+Файл `.env` добавлен в `.gitignore` и не должен попадать в репозиторий. CLI автоматически читает `.env`; также подключение можно переопределить через `--dsn` или `LINEAGE_DATABASE_URL`.
+
+## Быстрый запуск
+
+```bash
+python3 -m lineage_analyzer.cli ingest-openlineage examples/openlineage_event.json
+python3 -m lineage_analyzer.cli downstream dwh.orders
+python3 -m lineage_analyzer.cli critical
+```
+
+Web UI и JSON API:
+
+```bash
+python3 -m lineage_analyzer.cli serve --port 8080
+```
+
+UI графа зависимостей:
+
+```text
+http://127.0.0.1:8080/
+```
+
+В интерфейсе доступны темная тема, интерактивный SVG-граф, pan/zoom и просмотр downstream-зависимостей выбранной таблицы.
+
+Основные эндпоинты:
+
+- `POST /openlineage/events` - прием события OpenLineage;
+- `GET /graph` - полный граф зависимостей для UI;
+- `GET /tables` - актуальные таблицы модели данных;
+- `GET /graph/downstream?table=dwh.orders` - зависимые таблицы и атрибуты;
+- `GET /analysis/critical` - рейтинг критических узлов;
+- `GET /health` - проверка доступности сервиса.
+
+Синхронизация структуры таблиц из PostgreSQL-хранилища:
+
+```bash
+python3 -m lineage_analyzer.cli \
+  --dsn "$LINEAGE_DATABASE_URL" \
+  sync-postgres "postgresql://user:password@localhost:5432/warehouse" \
+  --schema public
+```
+
+## Соответствие ТЗ
+
+В проекте реализованы модули, описанные в специальном разделе:
+
+- `openlineage.py` - получение и первичная обработка событий OpenLineage;
+- `repository.py` - PostgreSQL-хранилище метаданных и версионное обновление модели;
+- `db_introspect.py` - получение метаданных из БД;
+- `graph.py` - impact analysis и расчет критических узлов;
+- `api.py` - HTTP-сервер на стандартной библиотеке Python, JSON API и выдача UI;
+- `cli.py` - командный интерфейс для запуска сценариев вручную.
+
+## Подробная документация
+
+Полное описание процессов находится в [docs/processes.md](docs/processes.md).
