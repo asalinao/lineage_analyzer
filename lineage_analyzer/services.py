@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+import traceback
 from dataclasses import asdict
 from typing import Any
 
@@ -16,8 +16,6 @@ from .openlineage import (
 from .repository import MetadataRepository
 from .sql_parser import SqlParser
 
-
-logger = logging.getLogger(__name__)
 
 FINAL_EVENT_TYPES = {
     EventType.COMPLETE,
@@ -38,15 +36,12 @@ class LineageService:
 
     def process_openlineage_event(self, payload: dict[str, Any]) -> dict[str, int | bool]:
         event = parse_openlineage_event(payload)
-        logger.info("Received OpenLineage event: type=%s job=%s", event.event_type.value, event.job.name)
 
         try:
             with self.repository.transaction():
                 event_id = self.repository.save_event(None, event.event_type, event.event_time.isoformat(), payload)
-                logger.info("Saved OpenLineage event: id=%s", event_id)
 
                 if event.event_type not in FINAL_EVENT_TYPES:
-                    logger.info("OpenLineage event ignored by status: %s", event.event_type.value)
                     return {
                         "model_updated": False,
                         "job_changed": False,
@@ -61,7 +56,6 @@ class LineageService:
                 )
                 
                 if not outputs:
-                    logger.info("OpenLineage event ignored by zero outputs")
                     return {
                         "model_updated": False,
                         "job_changed": False,
@@ -74,8 +68,6 @@ class LineageService:
 
                 job_result = self.repository.upsert_job(event.job, input_ids, output_ids)
                 self.repository.update_event_job(event_id, job_result.id)
-                if job_result.changed:
-                    logger.info("Created new job version: job=%s", event.job.name)
 
                 transformations = transformations_from_openlienage_event(payload.get("outputs", []))
                 if not transformations:
@@ -89,11 +81,6 @@ class LineageService:
                     )
                 if transformations_changed:
                     self.repository.replace_transformations(job_result.id, transformations)
-                    logger.info(
-                        "Created transformations: job=%s count=%s",
-                        event.job.name,
-                        len(transformations),
-                    )
 
                 return {
                     "model_updated": tables_changed or job_result.changed or transformations_changed,
@@ -103,7 +90,9 @@ class LineageService:
                     "transformations": len(transformations),
                 }
         except Exception:
-            logger.exception("Failed to process OpenLineage event")
+            print("Failed to process OpenLineage event", flush=True)
+            traceback.print_exc()
+            raise
 
     def update_tables_and_attributes(
         self,
@@ -121,8 +110,6 @@ class LineageService:
             table_id = self.repository.upsert_table(table)
             target_ids.append(table_id)
             changed = changed or table_changed
-            if table_changed:
-                logger.info("Created or updated table version: table=%s", table.name)
 
         return input_ids, output_ids, changed
 
@@ -137,19 +124,12 @@ class LineageService:
         changed_tables: list[str] = []
         unchanged_tables: list[str] = []
 
-        logger.info(
-            "Sync PostgreSQL metadata started: namespace=%s schema=%s actual_tables=%s",
-            namespace,
-            schema,
-            len(tables),
-        )
         with self.repository.transaction():
             for table in tables:
                 changed = not self.repository.table_matches_actual_model(table)
                 self.repository.upsert_table(table)
                 if changed:
                     changed_tables.append(table.name)
-                    logger.info("Created or updated table version: table=%s", table.name)
                 else:
                     unchanged_tables.append(table.name)
 
@@ -159,12 +139,6 @@ class LineageService:
                 schema,
             )
 
-        logger.info(
-            "Sync PostgreSQL metadata finished: changed=%s unchanged=%s removed=%s",
-            len(changed_tables),
-            len(unchanged_tables),
-            len(removed_tables),
-        )
         return {
             "actual_tables": len(tables),
             "changed_tables": changed_tables,
@@ -204,15 +178,17 @@ class LineageService:
             )
             result = self.sync_database_metadata(tables, namespace=result_namespace, schema=result_schema)
             self.repository.record_sync_schedule_run(schedule_id, result, error=None)
-            logger.info("Sync schedule finished: id=%s result=%s", schedule_id, result)
+            print(f"Sync schedule finished: id={schedule_id}", flush=True)
             return result
         except Exception as error:
             self.repository.rollback()
             try:
                 self.repository.record_sync_schedule_run(schedule_id, None, error=str(error))
             except Exception:
-                logger.exception("Sync schedule error status was not saved: id=%s", schedule_id)
-            logger.exception("Sync schedule failed: id=%s", schedule_id)
+                print(f"Sync schedule error status was not saved: id={schedule_id}", flush=True)
+                traceback.print_exc()
+            print(f"Sync schedule failed: id={schedule_id}", flush=True)
+            traceback.print_exc()
             raise
 
     def compare_table_states(self, old_table_id: int, new_table_id: int) -> dict[str, Any]:
@@ -378,7 +354,7 @@ class LineageService:
         if not sql:
             return ()
         if not self.sql_parser.is_supported(dialect):
-            logger.warning("SQL dialect is not supported: %s", dialect)
+            print(f"SQL dialect is not supported: {dialect}", flush=True)
             return ()
         return self.sql_parser.extract_transformations(sql, str(dialect).lower(), inputs, outputs)
 

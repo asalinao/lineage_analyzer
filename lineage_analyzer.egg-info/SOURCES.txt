@@ -7,7 +7,6 @@ lineage_analyzer/config.py
 lineage_analyzer/db_introspect.py
 lineage_analyzer/dsn.py
 lineage_analyzer/graph.py
-lineage_analyzer/logging_config.py
 lineage_analyzer/models.py
 lineage_analyzer/openlineage.py
 lineage_analyzer/repository.py

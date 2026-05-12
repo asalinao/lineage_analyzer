@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import logging
 import os
 import secrets
 import threading
@@ -20,7 +19,6 @@ TABLE_NAME_SQL = "namespace || '.' || schema || '.' || table_name"
 USER_ROLES = {"data_engineer", "data_analyst"}
 PASSWORD_ITERATIONS = 210_000
 SESSION_TTL_DAYS = 7
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -725,7 +723,6 @@ class MetadataRepository:
         password = os.getenv("LINEAGE_ADMIN_PASSWORD")
         if not password:
             password = secrets.token_urlsafe(16)
-            logger.warning("Initial data_engineer user created: username=%s password=%s", username, password)
             print(
                 "\nInitial data_engineer user created\n"
                 f"Username: {username}\n"

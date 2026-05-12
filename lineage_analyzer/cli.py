@@ -10,14 +10,12 @@ from .api import run_server
 from .config import load_local_env, metadata_dsn
 from .db_introspect import inspect_database
 from .graph import LineageGraph
-from .logging_config import configure_logging
 from .repository import MetadataRepository
 from .services import LineageService
 
 
 def main() -> None:
     load_local_env()
-    configure_logging()
     parser = argparse.ArgumentParser(prog="lineage-analyzer")
     parser.add_argument(
         "--dsn",

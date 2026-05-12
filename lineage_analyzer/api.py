@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import mimetypes
 from http.cookies import SimpleCookie
 from dataclasses import asdict
@@ -12,14 +11,12 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .graph import LineageGraph
-from .logging_config import configure_logging
 from .repository import MetadataRepository
 from .scheduler import SyncScheduler, validate_sync_schedule_payload
 from .services import LineageService
 
 
 UI_DIR = Path(__file__).with_name("ui")
-logger = logging.getLogger(__name__)
 SESSION_COOKIE = "lineage_session"
 
 
@@ -197,7 +194,7 @@ class LineageRequestHandler(BaseHTTPRequestHandler):
             self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(error))
 
     def log_message(self, format: str, *args: object) -> None:
-        logger.info("%s - %s", self.address_string(), format % args)
+        return
 
     def _required_query_param(self, query: str, name: str) -> str:
         values = parse_qs(query).get(name)
@@ -298,7 +295,6 @@ class LineageRequestHandler(BaseHTTPRequestHandler):
 
 
 def run_server(dsn: str, host: str = "127.0.0.1", port: int = 8080) -> None:
-    configure_logging()
     address = (host, port)
     with LineageWebServer(address, dsn) as server:
         print(f"Lineage Analyzer UI: http://{host}:{port}/")

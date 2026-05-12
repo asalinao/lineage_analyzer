@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -10,8 +9,6 @@ from .dsn import warehouse_dsn_for_storage
 from .repository import MetadataRepository
 from .services import LineageService
 
-
-logger = logging.getLogger(__name__)
 SOURCE_TYPES = {"postgresql", "greenplum", "clickhouse", "hadoop_spark"}
 
 
@@ -26,12 +23,10 @@ class SyncScheduler:
             if schedule.get("enabled"):
                 self.add_or_update_schedule(schedule)
         self.scheduler.start()
-        logger.info("Sync scheduler started")
 
     def shutdown(self) -> None:
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
-            logger.info("Sync scheduler stopped")
 
     def reload(self) -> None:
         self.scheduler.remove_all_jobs()
@@ -57,13 +52,11 @@ class SyncScheduler:
             max_instances=1,
             coalesce=True,
         )
-        logger.info("Sync schedule registered: id=%s", schedule_id)
 
     def remove_schedule(self, schedule_id: int) -> None:
         job_id = self._job_id(schedule_id)
         if self.scheduler.get_job(job_id):
             self.scheduler.remove_job(job_id)
-            logger.info("Sync schedule removed: id=%s", schedule_id)
 
     def _job_id(self, schedule_id: int) -> str:
         return f"sync_schedule_{schedule_id}"

@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import logging
 from typing import Iterable
 
 from sqlglot import exp, parse_one
 
 from .models import TableSpec, TransformationSpec
-
-
-logger = logging.getLogger(__name__)
 
 
 class SqlParser:
@@ -34,7 +30,7 @@ class SqlParser:
         try:
             tree = parse_one(sql, dialect=dialect)
         except Exception:
-            logger.exception("Failed to parse SQL lineage: dialect=%s", dialect)
+            print(f"SQL lineage parsing failed: dialect={dialect}", flush=True)
             return ()
 
         output_table = next(iter(outputs), None)
