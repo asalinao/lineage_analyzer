@@ -16,6 +16,18 @@
 }
 
 * { box-sizing: border-box; }
+* {
+  scrollbar-color: #3b4b63 #0f1724;
+  scrollbar-width: thin;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: #0f1724; }
+*::-webkit-scrollbar-thumb {
+  border: 2px solid #0f1724;
+  border-radius: 999px;
+  background: #3b4b63;
+}
+*::-webkit-scrollbar-thumb:hover { background: #50627a; }
 body {
   margin: 0;
   min-width: 1120px;
