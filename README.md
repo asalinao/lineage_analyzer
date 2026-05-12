@@ -44,9 +44,9 @@ cp .env.example .env
 Минимальные переменные для первого запуска:
 
 ```env
-POSTGRES_DB=test_db
-POSTGRES_USER=asalin
-POSTGRES_PASSWORD=asalin
+POSTGRES_DB=metadata_db
+POSTGRES_USER=metadata_user
+POSTGRES_PASSWORD=change_me
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 
