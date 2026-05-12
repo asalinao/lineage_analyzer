@@ -1,131 +1,345 @@
 # Lineage Analyzer
 
-Программная часть дипломного проекта: подсистема сбора, хранения и анализа метаданных жизненного цикла данных в корпоративном хранилище.
+Lineage Analyzer — дипломный проект для сбора, хранения, визуализации и анализа Data Lineage. Система принимает OpenLineage-события, хранит версионную модель метаданных, строит граф зависимостей таблиц и показывает влияние изменений.
 
 ## Возможности
 
-- прием событий OpenLineage в формате JSON;
-- сохранение истории событий выполнения задач;
-- версионное хранение таблиц, атрибутов, задач и трансформаций;
-- синхронизация структуры таблиц из PostgreSQL-хранилища;
-- анализ зависимых таблиц и атрибутов на основе обхода графа;
-- расчет критических узлов конвейера данных по влиянию, потере связности и частоте использования;
-- CLI, JSON API и web-интерфейс графа Data Lineage.
+- прием OpenLineage events через HTTP API;
+- хранение таблиц, атрибутов, jobs, трансформаций и событий в PostgreSQL;
+- версионирование модели метаданных через `valid_from`, `valid_to`, `is_actual`;
+- синхронизация схем из PostgreSQL, Greenplum, ClickHouse и Hadoop/Hive через Spark;
+- запуск синхронизации вручную и по расписанию через APScheduler;
+- web UI с интерактивным графом Data Lineage;
+- просмотр свойств таблиц, атрибутов, column-level lineage, SQL-кода jobs;
+- отчет изменений и затронутых downstream-объектов;
+- расчет критичности узлов графа;
+- ролевая модель пользователей.
 
-## Требования
+## Роли
 
-- Python 3.11+;
-- PostgreSQL 13+;
-- Python-драйвер `psycopg`.
+В системе есть две роли:
 
-Установка зависимостей:
+- `data_engineer` — полный доступ;
+- `data_analyst` — доступ к графу, объектам, версиям и отчетам, но без просмотра критических узлов и без управления синхронизацией.
 
-```bash
-python3 -m pip install -e .
-```
+Первый пользователь создается автоматически при первом запуске системы с ролью `data_engineer`.
 
-Локальная БД метаданных и web-приложение описаны в `docker-compose.yml`, а параметры подключения хранятся отдельно в локальном `.env`.
-
-```bash
-cp .env.example .env
-```
-
-После этого заполните значения в `.env` и запустите весь стек:
-
-```bash
-docker compose up -d --build
-```
-
-Приложение будет доступно по адресу:
-
-```text
-http://127.0.0.1:8080/
-```
-
-Если `LINEAGE_ADMIN_PASSWORD` в `.env` пустой, первый пользователь `data_engineer` создается автоматически, а сгенерированный пароль печатается в логи контейнера:
-
-```bash
-docker compose logs app
-```
-
-Файл `.env` добавлен в `.gitignore` и не должен попадать в репозиторий. CLI автоматически читает `.env`; также подключение можно переопределить через `--dsn` или `LINEAGE_DATABASE_URL`.
-
-Создание последующих пользователей:
+Последующие пользователи создаются через CLI:
 
 ```bash
 docker compose exec app lineage-analyzer create-user analyst1 --role data_analyst
 docker compose exec app lineage-analyzer create-user engineer1 --role data_engineer
 ```
 
-Пароли к внешним PostgreSQL-хранилищам, которые вводятся в UI на вкладке синхронизации, не сохраняются в БД в открытом виде. Приложение заменяет пароль в DSN на `${LINEAGE_WAREHOUSE_PASSWORD_...}` и сохраняет реальный пароль в env-файл `LINEAGE_WAREHOUSE_ENV_FILE`. В Docker Compose этот файл лежит в volume `app_secrets`, поэтому пароль доступен после перезапуска контейнера.
+Пароли пользователей хранятся в БД в виде PBKDF2-SHA256 hash с солью.
 
-Если синхронизируемая БД запущена на хост-машине, из контейнера нельзя использовать `localhost`, потому что он указывает на сам контейнер. Используйте адрес:
+## Быстрый Запуск В Docker
 
-```text
-postgresql://user:password@host.docker.internal:5433/
-```
-
-## Быстрый запуск
+Скопируйте пример переменных окружения:
 
 ```bash
-python3 -m lineage_analyzer.cli ingest-openlineage examples/openlineage_event.json
-python3 -m lineage_analyzer.cli downstream dwh.orders
-python3 -m lineage_analyzer.cli critical
+cp .env.example .env
 ```
 
-Web UI и JSON API:
+Минимальные переменные для первого запуска:
+
+```env
+POSTGRES_DB=test_db
+POSTGRES_USER=asalin
+POSTGRES_PASSWORD=asalin
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+
+LINEAGE_APP_PORT=8080
+LINEAGE_ADMIN_USERNAME=admin
+LINEAGE_ADMIN_PASSWORD=admin12345
+LINEAGE_WAREHOUSE_ENV_FILE=/app/secrets/warehouse.env
+```
+
+Запустите приложение и PostgreSQL-хранилище метаданных:
 
 ```bash
-python3 -m lineage_analyzer.cli serve --port 8080
+docker compose up -d --build
 ```
 
-UI графа зависимостей:
+UI будет доступен:
 
 ```text
 http://127.0.0.1:8080/
 ```
 
-В интерфейсе доступны темная тема, поиск таблиц, интерактивный SVG-граф, pan/zoom, ручное перетаскивание узлов и просмотр downstream-зависимостей выбранной таблицы.
-
-Основные эндпоинты:
-
-- `POST /openlineage/events` - прием события OpenLineage;
-- `GET /graph` - полный граф зависимостей для UI;
-- `GET /tables` - актуальные таблицы модели данных;
-- `GET /graph/downstream?table=dwh.orders` - зависимые таблицы и атрибуты;
-- `GET /analysis/critical` - рейтинг критических узлов;
-- `GET /health` - проверка доступности сервиса.
-
-Синхронизация структуры таблиц из PostgreSQL-хранилища:
+Если `LINEAGE_ADMIN_PASSWORD` пустой, пароль первого пользователя генерируется автоматически и выводится в консоль контейнера:
 
 ```bash
-python3 -m lineage_analyzer.cli \
-  --dsn "$LINEAGE_DATABASE_URL" \
-  sync-postgres "postgresql://user:password@localhost:5432/warehouse" \
+docker compose logs app
+```
+
+## Docker Compose
+
+В `docker-compose.yml` поднимаются два сервиса:
+
+- `postgres` — PostgreSQL-хранилище метаданных;
+- `app` — backend, API, scheduler и web UI.
+
+PostgreSQL получает параметры из `.env`:
+
+```yaml
+POSTGRES_DB
+POSTGRES_USER
+POSTGRES_PASSWORD
+POSTGRES_PORT
+```
+
+Посмотреть итоговую конфигурацию:
+
+```bash
+docker compose config
+```
+
+Полностью удалить контейнеры без удаления данных:
+
+```bash
+docker compose down
+```
+
+Удалить контейнеры вместе с volume PostgreSQL и сохраненными secret-файлами:
+
+```bash
+docker compose down -v
+```
+
+## Подключение К БД Из Контейнера
+
+Если внешняя БД запущена на хост-машине, из контейнера нельзя использовать `localhost`, потому что `localhost` указывает на сам контейнер приложения. Используйте:
+
+```text
+postgresql://user:password@host.docker.internal:5433/
+```
+
+Если внешняя БД запущена в другом Docker-контейнере, приложение и этот контейнер должны быть в одной Docker-сети. В DSN используйте имя сервиса или контейнера и внутренний порт:
+
+```text
+postgresql://user:password@ol_test_postgres:5432/
+```
+
+Для подключения приложения к внешней Docker-сети используется переменная:
+
+```env
+WAREHOUSE_DOCKER_NETWORK=diploma_test_db_default
+```
+
+## Секреты DSN Для Синхронизации
+
+Пароли к внешним хранилищам, введенные в UI на вкладке синхронизации, не сохраняются в БД в открытом виде.
+
+Приложение:
+
+1. извлекает пароль из DSN;
+2. создает переменную вида `LINEAGE_WAREHOUSE_PASSWORD_...`;
+3. сохраняет пароль в env-файл `LINEAGE_WAREHOUSE_ENV_FILE`;
+4. в БД записывает DSN со ссылкой на переменную окружения.
+
+В Docker Compose этот env-файл лежит в volume `app_secrets`, поэтому пароль сохраняется после перезапуска контейнера.
+
+## OpenLineage API
+
+OpenLineage events нужно отправлять на endpoint:
+
+```text
+POST /openlineage/events
+```
+
+Пример:
+
+```bash
+curl -X POST http://127.0.0.1:8080/openlineage/events \
+  -H "Content-Type: application/json" \
+  --data @event.json
+```
+
+Этот endpoint не требует UI-cookie, чтобы внешние инструменты вроде dbt/OpenLineage могли отправлять события без браузерной авторизации.
+
+## Основные API Endpoints
+
+- `GET /` — web UI;
+- `POST /auth/login` — вход пользователя;
+- `POST /auth/logout` — выход пользователя;
+- `GET /auth/me` — текущий пользователь;
+- `POST /openlineage/events` — прием OpenLineage event;
+- `GET /graph` — граф Data Lineage;
+- `GET /tables` — актуальные таблицы;
+- `GET /graph/downstream?table=<name>` — downstream-зависимости;
+- `GET /analysis/critical` — критичность узлов, только `data_engineer`;
+- `GET /history/table?name=<name>` — версии таблицы;
+- `GET /history/job?name=<name>` — версии job;
+- `GET /analysis/impact/table?...` — отчет изменений таблицы;
+- `GET /analysis/impact/job?...` — отчет изменений job;
+- `GET /sync-schedules` — расписания синхронизации, только `data_engineer`;
+- `POST /sync-schedules` — создать расписание, только `data_engineer`;
+- `POST /sync-schedules/<id>/run` — запустить синхронизацию, только `data_engineer`.
+
+## Синхронизация Метаданных
+
+Синхронизацию можно настроить в UI во вкладке `Синхронизация` или запускать через CLI.
+
+Поддерживаемые источники:
+
+- `postgresql`;
+- `greenplum`;
+- `clickhouse`;
+- `hadoop_spark`.
+
+### PostgreSQL
+
+```bash
+lineage-analyzer sync-postgres \
+  "postgresql://user:password@postgres-host:5432/warehouse" \
   --schema public
 ```
 
-Также доступны интроспекторы:
+В UI:
+
+- `Тип источника`: PostgreSQL;
+- `DSN подключения`: `postgresql://user:password@postgres-host:5432/`;
+- `База данных / namespace`: имя БД;
+- `Схема`: schema.
+
+### Greenplum
+
+Greenplum читается через PostgreSQL-compatible `information_schema.columns`.
 
 ```bash
-lineage-analyzer sync-greenplum "postgresql://user:password@gp-host:5432/warehouse" --schema public
-lineage-analyzer sync-clickhouse "http://user:password@clickhouse:8123/" --schema analytics
+lineage-analyzer sync-greenplum \
+  "postgresql://user:password@gp-host:5432/warehouse" \
+  --schema public
+```
+
+### ClickHouse
+
+ClickHouse читается через HTTP API и `system.columns`.
+
+```bash
+lineage-analyzer sync-clickhouse \
+  "http://user:password@clickhouse:8123/" \
+  --schema analytics
+```
+
+В UI:
+
+- `DSN подключения`: `http://user:password@clickhouse:8123/`;
+- `База данных / namespace`: ClickHouse database;
+- `Схема`: можно указать то же значение, для совместимости формы.
+
+### Hadoop / Spark
+
+Hadoop/Hive-таблицы читаются через Spark:
+
+- создается `SparkSession`;
+- включается Hive catalog через `enableHiveSupport()`;
+- выполняется `SHOW TABLES IN <schema>`;
+- для каждой таблицы выполняется `DESCRIBE TABLE <schema>.<table>`.
+
+Пример локального запуска:
+
+```bash
 lineage-analyzer sync-hadoop-spark "local[*]" --schema default
 ```
 
-Для расписаний синхронизации в UI выберите тип источника. Для PostgreSQL/Greenplum поле `База данных / namespace` используется как имя БД подключения, а поле `Схема` как schema. Для ClickHouse `База данных / namespace` используется как ClickHouse database. Для Hadoop/Spark поле `DSN подключения` задает Spark master (`local[*]`, `spark://spark-master:7077`), а поле `Схема` задает Hive database, из которой Spark читает таблицы через Hive catalog.
+Пример Spark standalone:
 
-## Соответствие ТЗ
+```bash
+lineage-analyzer sync-hadoop-spark \
+  "spark://spark-master:7077" \
+  --schema default
+```
 
-В проекте реализованы модули, описанные в специальном разделе:
+Можно передать Spark-конфиги query-параметрами:
 
-- `openlineage.py` - получение и первичная обработка событий OpenLineage;
-- `repository.py` - PostgreSQL-хранилище метаданных и версионное обновление модели;
-- `db_introspect.py` - получение метаданных из БД;
-- `graph.py` - impact analysis и расчет критических узлов;
-- `api.py` - HTTP-сервер на стандартной библиотеке Python, JSON API и выдача UI;
-- `cli.py` - командный интерфейс для запуска сценариев вручную.
+```bash
+lineage-analyzer sync-hadoop-spark \
+  "spark://spark-master:7077?appName=lineage-sync&spark.sql.catalogImplementation=hive" \
+  --schema default
+```
 
-## Подробная документация
+Docker-образ приложения содержит Java runtime и `pyspark`.
 
-Полное описание процессов находится в [docs/processes.md](docs/processes.md).
+## CLI
+
+Запуск сервера:
+
+```bash
+lineage-analyzer serve --host 0.0.0.0 --port 8080
+```
+
+Создать пользователя:
+
+```bash
+lineage-analyzer create-user analyst1 --role data_analyst
+```
+
+Посчитать критические узлы:
+
+```bash
+lineage-analyzer critical --limit 10
+```
+
+Найти downstream-зависимости:
+
+```bash
+lineage-analyzer downstream analytics.public.orders
+```
+
+Сравнить версии таблицы:
+
+```bash
+lineage-analyzer impact-table <old_table_id> <new_table_id>
+```
+
+Сравнить версии job:
+
+```bash
+lineage-analyzer impact-job <old_job_id> <new_job_id>
+```
+
+## UI
+
+Web-интерфейс предоставляет:
+
+- граф таблиц и jobs;
+- выбор узла или ребра графа;
+- свойства выбранного объекта;
+- список атрибутов таблицы;
+- раскрываемый column-level lineage для атрибутов;
+- SQL-код выбранной job;
+- версии таблиц и jobs;
+- отчет изменений;
+- подсветку критических узлов для `data_engineer`;
+- настройку расписаний синхронизации для `data_engineer`.
+
+## Логи
+
+Файловое логирование отключено. Приложение пишет в консоль только минимально необходимую информацию:
+
+- адрес UI при старте;
+- пароль первого пользователя, если он был сгенерирован автоматически;
+- ошибки обработки OpenLineage events;
+- ошибки синхронизации;
+- сообщение о завершении sync schedule.
+
+В Docker консольный вывод можно посмотреть так:
+
+```bash
+docker compose logs app
+```
+
+## Структура Проекта
+
+- `lineage_analyzer/api.py` — HTTP API и отдача UI;
+- `lineage_analyzer/cli.py` — CLI;
+- `lineage_analyzer/repository.py` — работа с PostgreSQL-хранилищем метаданных;
+- `lineage_analyzer/openlineage.py` — парсинг OpenLineage events;
+- `lineage_analyzer/db_introspect.py` — introspection внешних хранилищ;
+- `lineage_analyzer/services.py` — бизнес-процессы ingest, sync, impact report;
+- `lineage_analyzer/graph.py` — граф зависимостей и критичность узлов;
+- `lineage_analyzer/scheduler.py` — APScheduler для плановой синхронизации;
+- `lineage_analyzer/ui/` — HTML, CSS, JS интерфейса.
