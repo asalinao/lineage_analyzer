@@ -72,7 +72,7 @@ def main() -> None:
     try:
         if args.command == "ingest-openlineage":
             payload = json.loads(args.event.read_text(encoding="utf-8"))
-            print_json(service.ingest_event(payload))
+            print_json(service.process_openlineage_event(payload))
         elif args.command in {"sync-postgres", "sync-greenplum", "sync-clickhouse", "sync-hadoop-spark"}:
             tables = inspect_database(
                 args.source_type,

@@ -31,9 +31,6 @@ class LineageService:
         self.repository = repository
         self.sql_parser = sql_parser or SqlParser()
 
-    def ingest_event(self, payload: dict[str, Any]) -> dict[str, int | bool]:
-        return self.process_openlineage_event(payload)
-
     def process_openlineage_event(self, payload: dict[str, Any]) -> dict[str, int | bool]:
         event = parse_openlineage_event(payload)
 

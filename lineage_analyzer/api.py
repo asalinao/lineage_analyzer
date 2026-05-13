@@ -122,7 +122,7 @@ class LineageRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"logged_out": True}, headers=[self._clear_session_cookie()])
             elif parsed.path == "/openlineage/events":
                 payload = self._read_json_body()
-                result = self.server.service.ingest_event(payload)
+                result = self.server.service.process_openlineage_event(payload)
                 self._send_json(result, status=HTTPStatus.ACCEPTED)
             elif parts == ["sync-schedules"]:
                 if not self._require_role("data_engineer"):
