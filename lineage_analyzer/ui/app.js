@@ -382,7 +382,7 @@ function renderVersions(node) {
   wrap.append(...s.history.map((v) => {
     const row = document.createElement("article");
     row.className = "version-row";
-    row.innerHTML = `<strong>v${html(v.version)}${v.is_actual ? " актуальная" : ""}</strong><span>${html(date(v.valid_from || v.created_at))}</span><span>${html(v.attribute_count ?? v.transformation_count ?? 0)} ${v.attribute_count === undefined ? "трансф." : "атриб."}</span>`;
+    row.innerHTML = `<strong>v${html(v.version)}</strong><span>${html(date(v.valid_from))}</span><span>${html(v.attribute_count ?? v.transformation_count ?? 0)} ${v.attribute_count === undefined ? "трансф." : "атриб."}</span>`;
     return row;
   }));
   e.attributeList.replaceChildren(wrap);

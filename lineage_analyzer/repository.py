@@ -77,10 +77,8 @@ class MetadataRepository:
                     schema TEXT NOT NULL,
                     table_name TEXT NOT NULL,
                     version INTEGER NOT NULL,
-                    is_actual BOOLEAN NOT NULL DEFAULT TRUE,
                     valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     valid_to TIMESTAMPTZ,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     UNIQUE(namespace, schema, table_name, version)
                 );
                 CREATE TABLE IF NOT EXISTS lineage_attributes (
@@ -89,10 +87,8 @@ class MetadataRepository:
                     name TEXT NOT NULL,
                     data_type TEXT NOT NULL,
                     version INTEGER NOT NULL,
-                    is_actual BOOLEAN NOT NULL DEFAULT TRUE,
                     valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     valid_to TIMESTAMPTZ,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     UNIQUE(table_id, name)
                 );
                 CREATE TABLE IF NOT EXISTS lineage_jobs (
@@ -102,10 +98,8 @@ class MetadataRepository:
                     sql TEXT,
                     dialect TEXT,
                     version INTEGER NOT NULL,
-                    is_actual BOOLEAN NOT NULL DEFAULT TRUE,
                     valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     valid_to TIMESTAMPTZ,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     UNIQUE(name, version)
                 );
                 CREATE TABLE IF NOT EXISTS lineage_job_tables (
@@ -113,7 +107,6 @@ class MetadataRepository:
                     job_id BIGINT NOT NULL REFERENCES lineage_jobs(id),
                     table_id BIGINT NOT NULL REFERENCES lineage_tables(id),
                     role TEXT NOT NULL,
-                    is_actual BOOLEAN NOT NULL DEFAULT TRUE,
                     valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     valid_to TIMESTAMPTZ,
                     UNIQUE(job_id, table_id, role)
@@ -130,7 +123,6 @@ class MetadataRepository:
                     lineage_scope TEXT NOT NULL DEFAULT 'FIELD',
                     source TEXT NOT NULL DEFAULT 'openlineage',
                     expression TEXT,
-                    is_actual BOOLEAN NOT NULL DEFAULT TRUE,
                     valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     valid_to TIMESTAMPTZ
                 );
@@ -171,11 +163,11 @@ class MetadataRepository:
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 CREATE INDEX IF NOT EXISTS idx_lineage_tables_actual
-                    ON lineage_tables(namespace, schema, table_name) WHERE is_actual;
+                    ON lineage_tables(namespace, schema, table_name) WHERE valid_to IS NULL;
                 CREATE INDEX IF NOT EXISTS idx_lineage_attributes_actual
-                    ON lineage_attributes(table_id, name) WHERE is_actual;
+                    ON lineage_attributes(table_id, name) WHERE valid_to IS NULL;
                 CREATE INDEX IF NOT EXISTS idx_lineage_transformations_actual
-                    ON lineage_transformations(job_id) WHERE is_actual;
+                    ON lineage_transformations(job_id) WHERE valid_to IS NULL;
                 CREATE INDEX IF NOT EXISTS idx_lineage_sessions_user
                     ON lineage_sessions(user_id);
                 """
@@ -293,7 +285,7 @@ class MetadataRepository:
                 f"""
                 SELECT *, {TABLE_NAME_SQL} AS name
                 FROM lineage_tables
-                WHERE is_actual = TRUE AND namespace = %s AND schema = %s
+                WHERE valid_to IS NULL AND namespace = %s AND schema = %s
                 """,
                 (namespace, schema),
             ):
@@ -333,7 +325,7 @@ class MetadataRepository:
     def replace_transformations(self, job_id: int, transformations: Iterable[TransformationSpec]) -> None:
         with self._lock:
             self.conn.execute(
-                "UPDATE lineage_transformations SET is_actual = FALSE, valid_to = COALESCE(valid_to, NOW()) WHERE job_id = %s",
+                "UPDATE lineage_transformations SET valid_to = COALESCE(valid_to, NOW()) WHERE job_id = %s AND valid_to IS NULL",
                 (job_id,),
             )
             for item in transformations:
@@ -478,7 +470,7 @@ class MetadataRepository:
 
     def get_actual_table(self, name: str) -> dict[str, Any] | None:
         return self._one(
-            f"SELECT *, {TABLE_NAME_SQL} AS name FROM lineage_tables WHERE {TABLE_NAME_SQL} = %s AND is_actual = TRUE",
+            f"SELECT *, {TABLE_NAME_SQL} AS name FROM lineage_tables WHERE {TABLE_NAME_SQL} = %s AND valid_to IS NULL",
             (name,),
         )
 
@@ -502,7 +494,7 @@ class MetadataRepository:
         return self._rows("SELECT * FROM lineage_attributes WHERE table_id = %s ORDER BY name", (table_id,))
 
     def get_actual_job(self, name: str) -> dict[str, Any] | None:
-        return self._one("SELECT * FROM lineage_jobs WHERE name = %s AND is_actual = TRUE", (name,))
+        return self._one("SELECT * FROM lineage_jobs WHERE name = %s AND valid_to IS NULL", (name,))
 
     def job_history(self, name: str) -> list[dict[str, Any]]:
         return self._rows(
@@ -573,9 +565,9 @@ class MetadataRepository:
             FROM lineage_attributes
             JOIN lineage_tables ON lineage_tables.id = lineage_attributes.table_id
             WHERE {TABLE_NAME_SQL} = %s
-              AND lineage_tables.is_actual = TRUE
+              AND lineage_tables.valid_to IS NULL
               AND lineage_attributes.name = %s
-              AND lineage_attributes.is_actual = TRUE
+              AND lineage_attributes.valid_to IS NULL
             """,
             (table_name, attribute_name),
         ).fetchone()
@@ -586,7 +578,7 @@ class MetadataRepository:
             f"""
             SELECT *, {TABLE_NAME_SQL} AS name
             FROM lineage_tables
-            WHERE is_actual = TRUE
+            WHERE valid_to IS NULL
             ORDER BY namespace, schema, table_name
             """
         )
@@ -597,13 +589,13 @@ class MetadataRepository:
             SELECT lineage_attributes.*, {TABLE_NAME_SQL} AS table_name
             FROM lineage_attributes
             JOIN lineage_tables ON lineage_tables.id = lineage_attributes.table_id
-            WHERE lineage_attributes.is_actual = TRUE AND lineage_tables.is_actual = TRUE
+            WHERE lineage_attributes.valid_to IS NULL AND lineage_tables.valid_to IS NULL
             ORDER BY lineage_tables.namespace, lineage_tables.schema, lineage_tables.table_name, lineage_attributes.name
             """
         )
 
     def transformations(self) -> list[dict[str, Any]]:
-        return self._transformation_rows("lineage_transformations.is_actual = TRUE", (), "lineage_transformations.id")
+        return self._transformation_rows("lineage_transformations.valid_to IS NULL", (), "lineage_transformations.id")
 
     def job_usage_counts(self) -> dict[str, int]:
         rows = self.conn.execute(
@@ -614,7 +606,7 @@ class MetadataRepository:
                 ON lineage_job_tables.table_id = lineage_tables.id
                AND lineage_job_tables.role = %s
             JOIN lineage_events ON lineage_events.job_id = lineage_job_tables.job_id
-            WHERE lineage_tables.is_actual = TRUE AND lineage_job_tables.is_actual = TRUE
+            WHERE lineage_tables.valid_to IS NULL AND lineage_job_tables.valid_to IS NULL
             GROUP BY lineage_tables.namespace, lineage_tables.schema, lineage_tables.table_name
             """,
             (DatasetRole.INPUT.value,),
@@ -658,17 +650,17 @@ class MetadataRepository:
                 )
 
     def _deactivate_table(self, table_id: int) -> None:
-        self.conn.execute("UPDATE lineage_tables SET is_actual = FALSE, valid_to = COALESCE(valid_to, NOW()) WHERE id = %s", (table_id,))
-        self.conn.execute("UPDATE lineage_attributes SET is_actual = FALSE, valid_to = COALESCE(valid_to, NOW()) WHERE table_id = %s", (table_id,))
+        self.conn.execute("UPDATE lineage_tables SET valid_to = COALESCE(valid_to, NOW()) WHERE id = %s", (table_id,))
+        self.conn.execute("UPDATE lineage_attributes SET valid_to = COALESCE(valid_to, NOW()) WHERE table_id = %s AND valid_to IS NULL", (table_id,))
 
     def _deactivate_job(self, job_id: int) -> None:
-        self.conn.execute("UPDATE lineage_jobs SET is_actual = FALSE, valid_to = COALESCE(valid_to, NOW()) WHERE id = %s", (job_id,))
-        self.conn.execute("UPDATE lineage_job_tables SET is_actual = FALSE, valid_to = COALESCE(valid_to, NOW()) WHERE job_id = %s", (job_id,))
-        self.conn.execute("UPDATE lineage_transformations SET is_actual = FALSE, valid_to = COALESCE(valid_to, NOW()) WHERE job_id = %s", (job_id,))
+        self.conn.execute("UPDATE lineage_jobs SET valid_to = COALESCE(valid_to, NOW()) WHERE id = %s", (job_id,))
+        self.conn.execute("UPDATE lineage_job_tables SET valid_to = COALESCE(valid_to, NOW()) WHERE job_id = %s AND valid_to IS NULL", (job_id,))
+        self.conn.execute("UPDATE lineage_transformations SET valid_to = COALESCE(valid_to, NOW()) WHERE job_id = %s AND valid_to IS NULL", (job_id,))
 
     def _job_table_signature(self, job_id: int) -> tuple[tuple[str, int], ...]:
         rows = self.conn.execute(
-            "SELECT role, table_id FROM lineage_job_tables WHERE job_id = %s AND is_actual = TRUE ORDER BY role, table_id",
+            "SELECT role, table_id FROM lineage_job_tables WHERE job_id = %s AND valid_to IS NULL ORDER BY role, table_id",
             (job_id,),
         )
         return tuple((str(row["role"]), int(row["table_id"])) for row in rows)
@@ -683,7 +675,7 @@ class MetadataRepository:
 
     def _attribute_signature(self, table_id: int) -> list[tuple[str, str]]:
         rows = self.conn.execute(
-            "SELECT name, data_type FROM lineage_attributes WHERE table_id = %s AND is_actual = TRUE ORDER BY id",
+            "SELECT name, data_type FROM lineage_attributes WHERE table_id = %s AND valid_to IS NULL ORDER BY id",
             (table_id,),
         )
         return [(str(row["name"]), str(row["data_type"])) for row in rows]
@@ -710,7 +702,7 @@ class MetadataRepository:
                     SELECT input_attribute_id, output_attribute_id, lineage_type, lineage_subtype,
                            lineage_description, lineage_masking, lineage_scope, source, expression
                     FROM lineage_transformations
-                    WHERE job_id = %s AND is_actual = TRUE
+                    WHERE job_id = %s AND valid_to IS NULL
                     """,
                     (job_id,),
                 )
