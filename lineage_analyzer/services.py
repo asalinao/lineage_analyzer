@@ -39,9 +39,8 @@ class LineageService:
 
         try:
             with self.repository.transaction():
-                event_id = self.repository.save_event(None, event.event_type, event.event_time.isoformat(), payload)
-
                 if event.event_type not in FINAL_EVENT_TYPES:
+                    self.repository.save_event(event.run_id, None, event.event_type, event.event_time.isoformat(), payload)
                     return {
                         "model_updated": False,
                         "job_changed": False,
@@ -56,6 +55,7 @@ class LineageService:
                 )
                 
                 if not outputs:
+                    self.repository.save_event(event.run_id, None, event.event_type, event.event_time.isoformat(), payload)
                     return {
                         "model_updated": False,
                         "job_changed": False,
@@ -67,7 +67,7 @@ class LineageService:
                 input_ids, output_ids, tables_changed = self.update_tables_and_attributes(inputs, outputs)
 
                 job_result = self.repository.upsert_job(event.job, input_ids, output_ids)
-                self.repository.update_event_job(event_id, job_result.id)
+                self.repository.save_event(event.run_id, job_result.id, event.event_type, event.event_time.isoformat(), payload)
 
                 transformations = transformations_from_openlienage_event(payload.get("outputs", []))
                 if not transformations:

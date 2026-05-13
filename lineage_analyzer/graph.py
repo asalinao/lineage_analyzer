@@ -87,7 +87,9 @@ class LineageGraph:
         ]
 
         grouped_edges: dict[tuple[str, str], list[dict[str, object]]] = defaultdict(list)
-        for transformation in self.repository.transformations():
+        transformations = self.repository.transformations()
+        job_runs = self.repository.job_runs_by_names(str(item["job_name"]) for item in transformations)
+        for transformation in transformations:
             if not transformation.get("input_table"):
                 continue
             if not transformation.get("output_table"):
@@ -116,6 +118,11 @@ class LineageGraph:
                 "source": source,
                 "target": target,
                 "jobs": sorted({str(item["job"]) for item in transformations}),
+                "job_runs": [
+                    run
+                    for job_name in sorted({str(item["job"]) for item in transformations})
+                    for run in job_runs.get(job_name, [])
+                ],
                 "job_sql": [
                     {"job": job_name, "sql": sql}
                     for job_name, sql in sorted(

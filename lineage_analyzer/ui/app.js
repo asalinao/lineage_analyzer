@@ -13,6 +13,8 @@ const e = {
   detailsTabs: $("detailsTabs"), selectedTable: $("selectedTable"), attributeTitle: $("attributeTitle"),
   attributeList: $("attributeList"), attributeCount: $("attributeCount"), downstreamToggle: $("downstreamToggle"),
   downstreamTitle: $("downstreamTitle"), downstreamList: $("downstreamList"), downstreamCount: $("downstreamCount"),
+  jobRunsSection: $("jobRunsSection"), jobRunsToggle: $("jobRunsToggle"), jobRunsTitle: $("jobRunsTitle"),
+  jobRunsList: $("jobRunsList"), jobRunsCount: $("jobRunsCount"),
   refreshButton: $("refreshButton"), criticalToggleButton: $("criticalToggleButton"), syncPanelButton: $("syncPanelButton"), syncPanel: $("syncPanel"),
   syncCloseButton: $("syncCloseButton"), syncReloadButton: $("syncReloadButton"), syncError: $("syncError"),
   syncList: $("syncList"), syncForm: $("syncForm"), syncId: $("syncId"), syncName: $("syncName"),
@@ -23,7 +25,7 @@ const e = {
 const s = {
   graph: { nodes: [], edges: [] }, table: null, edge: null, attr: null, mode: "properties",
   history: [], historyLoading: false, historyError: "", oldVersion: "", newVersion: "",
-  report: null, reportLoading: false, reportError: "", list: "tables", collapsed: { downstream: false, edgeSql: true },
+  report: null, reportLoading: false, reportError: "", list: "tables", collapsed: { downstream: false, edgeSql: true, edgeRuns: true },
   downstream: [], critical: new Map(), criticalHighlight: false, pos: new Map(), view: { x: 40, y: 40, scale: 1 }, pointer: null, schedules: [], syncOpen: false,
   user: null,
 };
@@ -139,6 +141,7 @@ async function selectTable(id) {
   Object.assign(s, { table: id, edge: null, attr: null, list: "tables", downstream: [] });
   resetAnalysis();
   s.collapsed.downstream = true;
+  s.collapsed.edgeRuns = true;
   render();
   s.downstream = (await api(`/graph/downstream?table=${encodeURIComponent(id)}`)).downstream;
   render();
@@ -148,6 +151,7 @@ function selectEdge(id) {
   Object.assign(s, { table: null, edge: id, attr: null, list: "edges", downstream: [] });
   resetAnalysis();
   s.collapsed.edgeSql = true;
+  s.collapsed.edgeRuns = true;
   render();
 }
 
@@ -178,9 +182,16 @@ function clearDetails() {
   e.downstreamList.hidden = false;
   e.downstreamList.className = "downstream-list empty";
   e.downstreamList.textContent = "";
+  e.jobRunsSection.hidden = true;
+  e.jobRunsTitle.textContent = "";
+  e.jobRunsCount.textContent = "";
+  e.jobRunsList.hidden = false;
+  e.jobRunsList.className = "downstream-list empty";
+  e.jobRunsList.textContent = "";
 }
 
 function renderNode(node) {
+  e.jobRunsSection.hidden = true;
   e.selectedTable.className = "selected-card";
   e.selectedTable.innerHTML = `<dl><div><dt>Название</dt><dd>${html(tableName(node))}</dd></div><div><dt>База данных</dt><dd>${html(node.namespace)}</dd></div><div><dt>Связи</dt><dd>${inCount(node.id)} входящих · ${outCount(node.id)} исходящих</dd></div>${isEngineer() ? `<div><dt>Рейтинг критичности</dt><dd>${html(criticalScore(node.id))}</dd></div>` : ""}</dl>`;
   e.attributeTitle.textContent = "Атрибуты";
@@ -202,6 +213,7 @@ function renderEdge(edge) {
   if (!edge.job_sql.length) {
     e.downstreamList.className = "attribute-table empty";
     e.downstreamList.textContent = "SQL код не найден.";
+    renderJobRuns(edge);
     return;
   }
   e.downstreamList.className = "attribute-table";
@@ -213,6 +225,22 @@ function renderEdge(edge) {
     card.append(code);
     return card;
   }));
+  renderJobRuns(edge);
+}
+
+function renderJobRuns(edge) {
+  const runs = edge.job_runs || [];
+  e.jobRunsSection.hidden = false;
+  e.jobRunsTitle.textContent = title("История запусков", "edgeRuns");
+  e.jobRunsCount.textContent = runs.length;
+  e.jobRunsList.hidden = s.collapsed.edgeRuns;
+  if (!runs.length) {
+    e.jobRunsList.className = "attribute-table empty";
+    e.jobRunsList.textContent = "Запуски не найдены.";
+    return;
+  }
+  e.jobRunsList.className = "attribute-table";
+  e.jobRunsList.innerHTML = runs.map((run) => `<article class="transformation-card"><strong>${html(run.id)}</strong><dl><div><dt>Статус</dt><dd>${html(run.status || "")}</dd></div><div><dt>Старт</dt><dd>${html(date(run.started_at))}</dd></div><div><dt>Конец</dt><dd>${html(date(run.finished_at))}</dd></div></dl></article>`).join("");
 }
 
 function renderAttributes(node) {
@@ -318,6 +346,7 @@ async function loadHistory() {
 
 function renderVersions(node) {
   const type = node ? "table" : "job";
+  e.jobRunsSection.hidden = true;
   e.selectedTable.className = "empty";
   e.selectedTable.textContent = "";
   e.attributeTitle.textContent = "Версии";
@@ -375,6 +404,7 @@ async function compareVersions(type) {
 }
 
 function renderImpact() {
+  e.jobRunsSection.hidden = true;
   e.selectedTable.className = "empty";
   e.selectedTable.textContent = "";
   e.attributeTitle.textContent = "";
@@ -707,6 +737,10 @@ e.detailsTabs.onclick = (event) => {
 e.downstreamToggle.onclick = () => {
   if (s.edge) s.collapsed.edgeSql = !s.collapsed.edgeSql;
   else if (s.table) s.collapsed.downstream = !s.collapsed.downstream;
+  renderDetails();
+};
+e.jobRunsToggle.onclick = () => {
+  if (s.edge) s.collapsed.edgeRuns = !s.collapsed.edgeRuns;
   renderDetails();
 };
 [e.tableCountCard, e.edgeCountCard].forEach((card, i) => {

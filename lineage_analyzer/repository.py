@@ -135,7 +135,7 @@ class MetadataRepository:
                     valid_to TIMESTAMPTZ
                 );
                 CREATE TABLE IF NOT EXISTS lineage_events (
-                    id BIGSERIAL PRIMARY KEY,
+                    id TEXT NOT NULL,
                     job_id BIGINT REFERENCES lineage_jobs(id),
                     event_type TEXT NOT NULL,
                     event_time TIMESTAMPTZ NOT NULL,
@@ -369,37 +369,18 @@ class MetadataRepository:
     def transformations_match_actual_job(self, job_id: int, transformations: Iterable[TransformationSpec]) -> bool:
         return self._transformation_signature(job_id) == self._transformation_signature_from_specs(transformations)
 
-    def save_event(self, job_id: int | None, event_type: EventType, event_time: str, raw: dict[str, Any]) -> int:
+    def save_event(self, event_id: str, job_id: int | None, event_type: EventType, event_time: str, raw: dict[str, Any]) -> str:
         with self._lock:
             raw_json = json.dumps(raw, ensure_ascii=False)
-            existing = self.conn.execute(
+            self.conn.execute(
                 """
-                SELECT id FROM lineage_events
-                WHERE event_type = %s AND event_time = %s AND raw_json = CAST(%s AS jsonb)
-                ORDER BY id LIMIT 1
+                INSERT INTO lineage_events(id, job_id, event_type, event_time, raw_json)
+                VALUES (%s, %s, %s, %s, CAST(%s AS jsonb))
                 """,
-                (event_type.value, event_time, raw_json),
-            ).fetchone()
-            if existing:
-                if job_id is not None:
-                    self.update_event_job(int(existing["id"]), job_id)
-                return int(existing["id"])
-
-            row = self.conn.execute(
-                """
-                INSERT INTO lineage_events(job_id, event_type, event_time, raw_json)
-                VALUES (%s, %s, %s, CAST(%s AS jsonb))
-                RETURNING id
-                """,
-                (job_id, event_type.value, event_time, raw_json),
-            ).fetchone()
+                (event_id, job_id, event_type.value, event_time, raw_json),
+            )
             self._commit()
-            return int(row["id"])
-
-    def update_event_job(self, event_id: int, job_id: int) -> None:
-        with self._lock:
-            self.conn.execute("UPDATE lineage_events SET job_id = %s WHERE id = %s", (job_id, event_id))
-            self._commit()
+            return event_id
 
     def create_sync_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
@@ -535,6 +516,49 @@ class MetadataRepository:
             """,
             (name,),
         )
+
+    def job_runs_by_names(self, names: Iterable[str]) -> dict[str, list[dict[str, Any]]]:
+        job_names = sorted({str(name) for name in names if name})
+        if not job_names:
+            return {}
+        placeholders = ", ".join(["%s"] * len(job_names))
+        rows = self._rows(
+            f"""
+            WITH jobs AS (
+                SELECT 
+                    DISTINCT lineage_events.id, lineage_jobs.name
+                FROM lineage_events
+                JOIN lineage_jobs ON lineage_jobs.id = lineage_events.job_id
+                WHERE lineage_jobs.name IN ({placeholders})
+            )
+            SELECT 
+                jobs.name AS job_name,
+                lineage_events.id AS id,
+                (ARRAY_AGG(lineage_events.event_type ORDER BY lineage_events.event_time DESC))[1] AS status,
+                MAX(
+                    CASE 
+                        WHEN lineage_events.event_type = 'START' 
+                        THEN lineage_events.event_time ELSE NULL 
+                    END 
+                )AS started_at,
+                MIN(
+                    CASE
+                        WHEN lineage_events.event_type IN ('COMPLETE', 'FAIL', 'FAILED', 'ABORT', 'ABORTED')
+                        THEN lineage_events.event_time
+                        ELSE NULL
+                    END 
+                )AS finished_at
+            FROM lineage_events 
+            JOIN jobs ON jobs.id = lineage_events.id
+            GROUP BY jobs.name, lineage_events.id
+            ORDER BY MAX(lineage_events.event_type) DESC NULLS LAST, MIN(lineage_events.event_type) DESC NULLS LAST
+            """,
+            tuple(job_names),
+        )
+        grouped: dict[str, list[dict[str, Any]]] = {name: [] for name in job_names}
+        for row in rows:
+            grouped[str(row.pop("job_name"))].append(row)
+        return grouped
 
     def get_job_state(self, job_id: int) -> dict[str, Any] | None:
         return self._one("SELECT * FROM lineage_jobs WHERE id = %s", (job_id,))

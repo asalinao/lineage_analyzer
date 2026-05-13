@@ -7,6 +7,11 @@ from .models import AttributeSpec, EventType, JobSpec, LineageEvent, TableSpec, 
 
 
 def parse_openlineage_event(payload: dict[str, Any]) -> LineageEvent:
+    run_data = payload.get("run") or {}
+    run_id = run_data.get("run_id") or run_data.get("runId")
+    if not run_id:
+        raise ValueError("OpenLineage run.run_id/runId is required")
+
     event_type_value = payload.get("eventType")
     try:
         event_type = EventType(str(event_type_value))
@@ -20,6 +25,7 @@ def parse_openlineage_event(payload: dict[str, Any]) -> LineageEvent:
         event_time = datetime.now(timezone.utc)
 
     return LineageEvent(
+        run_id=str(run_id),
         event_type=event_type,
         event_time=event_time,
         job=job_from_openlineage_event(payload.get("job") or {}),

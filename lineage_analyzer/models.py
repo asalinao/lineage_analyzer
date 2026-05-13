@@ -70,6 +70,7 @@ class JobSpec:
 
 @dataclass(frozen=True, slots=True)
 class LineageEvent:
+    run_id: str
     event_type: EventType
     event_time: datetime
     job: JobSpec
