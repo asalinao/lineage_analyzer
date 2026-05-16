@@ -72,27 +72,21 @@ F1        = 2 * Precision * Recall / (Precision + Recall)
 | Сценарий | Система | Сложность | Диалект | Ожидалось | Найдено | TP | FP | FN | Precision | Recall |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Прямая проекция атрибутов | PostgreSQL | базовый | `postgres` | 2 | 2 | 2 | 0 | 0 | 1.00 | 1.00 |
-| Прямая проекция атрибутов | Greenplum | базовый | `postgresql` | 2 | 0 | 0 | 0 | 2 | 0.00 | 0.00 |
 | Прямая проекция атрибутов | ClickHouse | базовый | `clickhouse` | 2 | 2 | 2 | 0 | 0 | 1.00 | 1.00 |
 | Прямая проекция атрибутов | Hadoop/Hive | базовый | `hive` | 2 | 2 | 2 | 0 | 0 | 1.00 | 1.00 |
 | Join и агрегация | PostgreSQL | базовый | `postgres` | 4 | 4 | 4 | 0 | 0 | 1.00 | 1.00 |
-| Join и агрегация | Greenplum | базовый | `postgresql` | 4 | 0 | 0 | 0 | 4 | 0.00 | 0.00 |
 | Join и агрегация | ClickHouse | базовый | `clickhouse` | 4 | 4 | 4 | 0 | 0 | 1.00 | 1.00 |
 | Join и агрегация | Hadoop/Hive | базовый | `hive` | 4 | 4 | 4 | 0 | 0 | 1.00 | 1.00 |
 | Вычисляемое выражение | PostgreSQL | базовый | `postgres` | 2 | 2 | 2 | 0 | 0 | 1.00 | 1.00 |
-| Вычисляемое выражение | Greenplum | базовый | `postgresql` | 2 | 0 | 0 | 0 | 2 | 0.00 | 0.00 |
 | Вычисляемое выражение | ClickHouse | базовый | `clickhouse` | 2 | 2 | 2 | 0 | 0 | 1.00 | 1.00 |
 | Вычисляемое выражение | Hadoop/Hive | базовый | `hive` | 2 | 2 | 2 | 0 | 0 | 1.00 | 1.00 |
 | `SELECT *` | PostgreSQL | сложная конструкция | `postgres` | 2 | 0 | 0 | 0 | 2 | 0.00 | 0.00 |
-| `SELECT *` | Greenplum | сложная конструкция | `postgresql` | 2 | 0 | 0 | 0 | 2 | 0.00 | 0.00 |
 | `SELECT *` | ClickHouse | сложная конструкция | `clickhouse` | 2 | 0 | 0 | 0 | 2 | 0.00 | 0.00 |
 | `SELECT *` | Hadoop/Hive | сложная конструкция | `hive` | 2 | 0 | 0 | 0 | 2 | 0.00 | 0.00 |
 | Неуточненная колонка в join | PostgreSQL | сложная конструкция | `postgres` | 3 | 2 | 2 | 0 | 1 | 1.00 | 0.67 |
-| Неуточненная колонка в join | Greenplum | сложная конструкция | `postgresql` | 3 | 0 | 0 | 0 | 3 | 0.00 | 0.00 |
 | Неуточненная колонка в join | ClickHouse | сложная конструкция | `clickhouse` | 3 | 2 | 2 | 0 | 1 | 1.00 | 0.67 |
 | Неуточненная колонка в join | Hadoop/Hive | сложная конструкция | `hive` | 3 | 2 | 2 | 0 | 1 | 1.00 | 0.67 |
 | CTE | PostgreSQL | сложная конструкция | `postgres` | 2 | 2 | 0 | 2 | 2 | 0.00 | 0.00 |
-| CTE | Greenplum | сложная конструкция | `postgresql` | 2 | 0 | 0 | 0 | 2 | 0.00 | 0.00 |
 | CTE | ClickHouse | сложная конструкция | `clickhouse` | 2 | 2 | 0 | 2 | 2 | 0.00 | 0.00 |
 | CTE | Hadoop/Hive | сложная конструкция | `hive` | 2 | 2 | 0 | 2 | 2 | 0.00 | 0.00 |
 
@@ -101,7 +95,6 @@ F1        = 2 * Precision * Recall / (Precision + Recall)
 | Система | Ожидалось | Найдено | TP | FP | FN | Precision | Recall | F1 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | ClickHouse | 15 | 12 | 10 | 2 | 5 | 0.83 | 0.67 | 0.74 |
-| Greenplum | 15 | 0 | 0 | 0 | 15 | 0.00 | 0.00 | 0.00 |
 | Hadoop/Hive | 15 | 12 | 10 | 2 | 5 | 0.83 | 0.67 | 0.74 |
 | PostgreSQL | 15 | 12 | 10 | 2 | 5 | 0.83 | 0.67 | 0.74 |
 
@@ -109,15 +102,15 @@ F1        = 2 * Precision * Recall / (Precision + Recall)
 
 | Группа сценариев | Ожидалось | Найдено | TP | FP | FN | Precision | Recall | F1 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Базовые поддерживаемые сценарии | 32 | 24 | 24 | 0 | 8 | 1.00 | 0.75 | 0.86 |
-| Сложные SQL-конструкции | 28 | 12 | 6 | 6 | 22 | 0.50 | 0.21 | 0.30 |
+| Базовые поддерживаемые сценарии | 24 | 24 | 24 | 0 | 0 | 1.00 | 1.00 | 1.00 |
+| Сложные SQL-конструкции | 21 | 12 | 6 | 6 | 15 | 0.50 | 0.29 | 0.36 |
 
 Итоговые значения:
 
 ```text
 Precision = 0.8333
-Recall    = 0.5000
-F1        = 0.6250
+Recall    = 0.6667
+F1        = 0.7407
 ```
 
 Полученный результат показывает, что качество lineage-модели неоднородно. На простых поддерживаемых сценариях с явными колонками и алиасами модуль извлекает зависимости корректно. При этом расширенный набор выявляет ограничения текущей реализации:
@@ -125,38 +118,33 @@ F1        = 0.6250
 - для PostgreSQL базовые сценарии извлекаются корректно, но сложные конструкции `SELECT *` и `CTE` по-прежнему обрабатываются неверно;
 - для Hive и ClickHouse базовые сценарии извлекаются корректно, но сложные конструкции `SELECT *`, ambiguous join и `CTE` остаются проблемными;
 - для ClickHouse и Hive итоговый профиль ошибок совпадает с PostgreSQL на сложных сценариях;
-- для Greenplum возможна потеря связей, если dialect приходит как `postgresql`: текущий код считает его поддерживаемым, но передает это значение напрямую в `sqlglot`, где требуется нормализация к `postgres`;
 - `SELECT *` не раскрывается до набора физических атрибутов, поэтому column-level lineage не строится;
 - при неуточненных колонках в запросах с несколькими входными таблицами теряется часть прямых зависимостей;
 - при CTE источник может определяться как временное имя CTE, из-за чего связь с исходной таблицей не совпадает с эталоном.
 
-Следовательно, подход эффективен при наличии OpenLineage columnLineage facets либо при SQL-запросах с поддерживаемым диалектом, явными проекциями и квалифицированными колонками. Для повышения качества модели следует добавить нормализацию диалектов Greenplum, раскрытие `SELECT *` по известной схеме таблиц и обработку CTE/подзапросов.
+Следовательно, подход эффективен при наличии OpenLineage columnLineage facets либо при SQL-запросах с поддерживаемым диалектом, явными проекциями и квалифицированными колонками. Для повышения качества модели следует добавить раскрытие `SELECT *` по известной схеме таблиц и обработку CTE/подзапросов.
 
 Примеры некорректной работы:
-
-- Greenplum, `greenplum_join_and_aggregation`
-  SQL: `select c.customer_id, sum(o.amount) as total_amount from public.customers c join public.orders o on c.customer_id = o.customer_id group by c.customer_id`
-  Ожидалось:
-  `warehouse.public.customers.customer_id -> warehouse.mart.customer_revenue.customer_id`
-  `warehouse.public.orders.amount -> warehouse.mart.customer_revenue.total_amount`
-  `warehouse.public.customers.customer_id -> warehouse.mart.customer_revenue.__dataset__`
-  `warehouse.public.orders.customer_id -> warehouse.mart.customer_revenue.__dataset__`
-  Фактически найдено: ничего. Причина: `sqlglot` не принимает `postgresql` как dialect для этого кода.
-
-- ClickHouse, `clickhouse_basic_supported`
-  SQL: `select user_id, count() as event_count from analytics.events group by user_id`
-  Ожидалось:
-  `clickhouse.analytics.events.user_id -> clickhouse.mart.user_events.user_id`
-  `clickhouse.analytics.events.event_count -> clickhouse.mart.user_events.event_count`
-  Фактически найдено только:
-  `clickhouse.analytics.events.user_id -> clickhouse.mart.user_events.user_id`
-  Агрегационная зависимость для `event_count` не строится, потому что `count()` не содержит явной входной колонки.
 
 - PostgreSQL, `select_star_projection`
   SQL: `select * from public.customers`
   Ожидалось:
   `warehouse.public.customers.customer_id -> warehouse.mart.customers_copy.customer_id`
   `warehouse.public.customers.email -> warehouse.mart.customers_copy.email`
+  Фактически найдено: ничего. Причина: текущий парсер не раскрывает `*` по схеме входной таблицы.
+
+- ClickHouse, `clickhouse_select_star_projection`
+  SQL: `select * from analytics.customers`
+  Ожидалось:
+  `clickhouse.analytics.customers.customer_id -> clickhouse.mart.customers_copy.customer_id`
+  `clickhouse.analytics.customers.email -> clickhouse.mart.customers_copy.email`
+  Фактически найдено: ничего. Причина: текущий парсер не раскрывает `*` по схеме входной таблицы.
+
+- Hadoop/Hive, `hadoop_spark_select_star_projection`
+  SQL: `select * from dwh.customers`
+  Ожидалось:
+  `hive.dwh.customers.customer_id -> hive.mart.customers_copy.customer_id`
+  `hive.dwh.customers.email -> hive.mart.customers_copy.email`
   Фактически найдено: ничего. Причина: текущий парсер не раскрывает `*` по схеме входной таблицы.
 
 - PostgreSQL, `ambiguous_unqualified_join_column`
@@ -166,6 +154,22 @@ F1        = 0.6250
   `warehouse.public.customers.id -> warehouse.mart.customer_orders.__dataset__`
   `warehouse.public.orders.id -> warehouse.mart.customer_orders.__dataset__`
   Не найдена колонка `warehouse.mart.customer_orders.id`, потому что `id` в `select` не квалифицирована и парсер не может однозначно привязать ее к источнику.
+
+- ClickHouse, `clickhouse_ambiguous_unqualified_join_column`
+  SQL: `select id from analytics.customers c join analytics.orders o on c.id = o.id`
+  Ожидалось 3 зависимости, включая dataset-level lineage для обеих таблиц.
+  Фактически найдены только:
+  `clickhouse.analytics.customers.id -> clickhouse.mart.customer_orders.__dataset__`
+  `clickhouse.analytics.orders.id -> clickhouse.mart.customer_orders.__dataset__`
+  Не найдена колонка `clickhouse.mart.customer_orders.id`, потому что `id` в `select` не квалифицирована и парсер не может однозначно привязать ее к источнику.
+
+- Hadoop/Hive, `hadoop_spark_ambiguous_unqualified_join_column`
+  SQL: `select id from dwh.customers c join dwh.orders o on c.id = o.id`
+  Ожидалось 3 зависимости, включая dataset-level lineage для обеих таблиц.
+  Фактически найдены только:
+  `hive.dwh.customers.id -> hive.mart.customer_orders.__dataset__`
+  `hive.dwh.orders.id -> hive.mart.customer_orders.__dataset__`
+  Не найдена колонка `hive.mart.customer_orders.id`, потому что `id` в `select` не квалифицирована и парсер не может однозначно привязать ее к источнику.
 
 - PostgreSQL, `cte_source_resolution`
   SQL:
@@ -177,6 +181,28 @@ F1        = 0.6250
   `recent_orders.customer_id -> warehouse.mart.recent_orders.customer_id`
   `recent_orders.amount -> warehouse.mart.recent_orders.amount`
   Причина: CTE воспринимается как самостоятельный источник, а не разворачивается обратно в `public.orders`.
+
+- ClickHouse, `clickhouse_cte_source_resolution`
+  SQL:
+  `with recent_orders as (select customer_id, amount from analytics.orders where amount > 0) select r.customer_id, r.amount from recent_orders r`
+  Ожидалось:
+  `clickhouse.analytics.orders.customer_id -> clickhouse.mart.recent_orders.customer_id`
+  `clickhouse.analytics.orders.amount -> clickhouse.mart.recent_orders.amount`
+  Фактически строятся ложные связи через CTE-имя:
+  `recent_orders.customer_id -> clickhouse.mart.recent_orders.customer_id`
+  `recent_orders.amount -> clickhouse.mart.recent_orders.amount`
+  Причина: CTE воспринимается как самостоятельный источник, а не разворачивается обратно в `analytics.orders`.
+
+- Hadoop/Hive, `hadoop_spark_cte_source_resolution`
+  SQL:
+  `with recent_orders as (select customer_id, amount from dwh.orders where amount > 0) select r.customer_id, r.amount from recent_orders r`
+  Ожидалось:
+  `hive.dwh.orders.customer_id -> hive.mart.recent_orders.customer_id`
+  `hive.dwh.orders.amount -> hive.mart.recent_orders.amount`
+  Фактически строятся ложные связи через CTE-имя:
+  `recent_orders.customer_id -> hive.mart.recent_orders.customer_id`
+  `recent_orders.amount -> hive.mart.recent_orders.amount`
+  Причина: CTE воспринимается как самостоятельный источник, а не разворачивается обратно в `dwh.orders`.
 
 ## Производительность графового анализа
 
@@ -233,19 +259,19 @@ Pcritical = min(1, 1000 мс / Tcritical)
 
 ```text
 Cfunc     = 1.00
-F1        = 0.5882
+F1        = 0.7407
 Timpact   = 0.775 мс
 Tcritical = 164.760 мс
 Pimpact   = 1.00
 Pcritical = 1.00
 
-E = 0.35 * 1.00 + 0.35 * 0.5882 + 0.20 * 1.00 + 0.10 * 1.00 = 0.8559
+E = 0.35 * 1.00 + 0.35 * 0.7407 + 0.20 * 1.00 + 0.10 * 1.00 = 0.9092
 ```
 
 Итоговый показатель эффективности на выбранном наборе сценариев составляет:
 
 ```text
-E = 0.8559 = 85.59%
+E = 0.9092 = 90.92%
 ```
 
 ## Вывод

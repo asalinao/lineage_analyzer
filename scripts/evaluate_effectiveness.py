@@ -28,7 +28,6 @@ def table(name: str, attributes: tuple[str, ...]) -> TableSpec:
 
 SYSTEMS = {
     "postgresql": {"label": "PostgreSQL", "dialect": "postgres", "namespace": "warehouse", "source_schema": "public", "target_schema": "mart"},
-    "greenplum": {"label": "Greenplum", "dialect": "postgresql", "namespace": "warehouse", "source_schema": "public", "target_schema": "mart"},
     "clickhouse": {"label": "ClickHouse", "dialect": "clickhouse", "namespace": "clickhouse", "source_schema": "analytics", "target_schema": "mart"},
     "hadoop_spark": {"label": "Hadoop/Hive", "dialect": "hive", "namespace": "hive", "source_schema": "dwh", "target_schema": "mart"},
 }
@@ -166,7 +165,7 @@ SQL_CASES = [
         "ambiguous_unqualified_join_column",
         "cte_source_resolution",
     )
-    for system in ("postgresql", "greenplum", "clickhouse", "hadoop_spark")
+    for system in ("postgresql", "clickhouse", "hadoop_spark")
 ]
 
 
