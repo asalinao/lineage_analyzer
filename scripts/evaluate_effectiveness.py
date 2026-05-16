@@ -1,0 +1,407 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import statistics
+import time
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from lineage_analyzer.graph import LineageGraph
+from lineage_analyzer.models import AttributeChange, AttributeSpec, ChangeType, TableSpec
+from lineage_analyzer.sql_parser import SqlParser
+
+
+def table(name: str, attributes: tuple[str, ...]) -> TableSpec:
+    namespace, schema, table_name = name.split(".")
+    return TableSpec(
+        namespace=namespace,
+        schema=schema,
+        table_name=table_name,
+        attributes=tuple(AttributeSpec(attribute, "text") for attribute in attributes),
+    )
+
+
+SQL_CASES = [
+    {
+        "name": "postgres_identity_projection",
+        "source_system": "postgresql",
+        "difficulty": "basic_supported",
+        "dialect": "postgres",
+        "sql": "select customer_id, email from public.customers",
+        "inputs": (table("warehouse.public.customers", ("customer_id", "email")),),
+        "outputs": (table("warehouse.mart.dim_customers", ("customer_id", "email")),),
+        "expected": {
+            ("warehouse.public.customers", "customer_id", "warehouse.mart.dim_customers", "customer_id"),
+            ("warehouse.public.customers", "email", "warehouse.mart.dim_customers", "email"),
+        },
+    },
+    {
+        "name": "greenplum_join_and_aggregation",
+        "source_system": "greenplum",
+        "difficulty": "basic_supported",
+        "dialect": "postgresql",
+        "sql": """
+            select c.customer_id, sum(o.amount) as total_amount
+            from public.customers c
+            join public.orders o on c.customer_id = o.customer_id
+            group by c.customer_id
+        """,
+        "inputs": (
+            table("warehouse.public.customers", ("customer_id", "email")),
+            table("warehouse.public.orders", ("customer_id", "amount")),
+        ),
+        "outputs": (table("warehouse.mart.customer_revenue", ("customer_id", "total_amount", "__dataset__")),),
+        "expected": {
+            ("warehouse.public.customers", "customer_id", "warehouse.mart.customer_revenue", "customer_id"),
+            ("warehouse.public.orders", "amount", "warehouse.mart.customer_revenue", "total_amount"),
+            ("warehouse.public.customers", "customer_id", "warehouse.mart.customer_revenue", "__dataset__"),
+            ("warehouse.public.orders", "customer_id", "warehouse.mart.customer_revenue", "__dataset__"),
+        },
+    },
+    {
+        "name": "postgres_derived_expression",
+        "source_system": "postgresql",
+        "difficulty": "basic_supported",
+        "dialect": "postgres",
+        "sql": "select order_id, amount * 1.2 as amount_with_tax from public.orders",
+        "inputs": (table("warehouse.public.orders", ("order_id", "amount")),),
+        "outputs": (table("warehouse.mart.orders_tax", ("order_id", "amount_with_tax")),),
+        "expected": {
+            ("warehouse.public.orders", "order_id", "warehouse.mart.orders_tax", "order_id"),
+            ("warehouse.public.orders", "amount", "warehouse.mart.orders_tax", "amount_with_tax"),
+        },
+    },
+    {
+        "name": "snowflake_quoted_identifiers",
+        "source_system": "snowflake",
+        "difficulty": "basic_supported",
+        "dialect": "snowflake",
+        "sql": 'select c."CUSTOMER_ID", c."EMAIL" from "PUBLIC"."CUSTOMERS" c',
+        "inputs": (table("RAW.PUBLIC.CUSTOMERS", ("CUSTOMER_ID", "EMAIL")),),
+        "outputs": (table("RAW.MART.DIM_CUSTOMERS", ("CUSTOMER_ID", "EMAIL")),),
+        "expected": {
+            ("RAW.PUBLIC.CUSTOMERS", "CUSTOMER_ID", "RAW.MART.DIM_CUSTOMERS", "CUSTOMER_ID"),
+            ("RAW.PUBLIC.CUSTOMERS", "EMAIL", "RAW.MART.DIM_CUSTOMERS", "EMAIL"),
+        },
+    },
+    {
+        "name": "bigquery_struct_field_expression",
+        "source_system": "bigquery",
+        "difficulty": "basic_supported",
+        "dialect": "bigquery",
+        "sql": "select user_id, device.category as device_category from `project.analytics.events`",
+        "inputs": (table("project.analytics.events", ("user_id", "device")),),
+        "outputs": (table("project.mart.event_devices", ("user_id", "device_category")),),
+        "expected": {
+            ("project.analytics.events", "user_id", "project.mart.event_devices", "user_id"),
+            ("project.analytics.events", "category", "project.mart.event_devices", "device_category"),
+        },
+    },
+    {
+        "name": "clickhouse_unsupported_dialect",
+        "source_system": "clickhouse",
+        "difficulty": "unsupported_sql_dialect",
+        "dialect": "clickhouse",
+        "sql": "select user_id, count() as event_count from analytics.events group by user_id",
+        "inputs": (table("clickhouse.analytics.events", ("user_id", "event_count")),),
+        "outputs": (table("clickhouse.mart.user_events", ("user_id", "event_count")),),
+        "expected": {
+            ("clickhouse.analytics.events", "user_id", "clickhouse.mart.user_events", "user_id"),
+            ("clickhouse.analytics.events", "event_count", "clickhouse.mart.user_events", "event_count"),
+        },
+    },
+    {
+        "name": "hive_unsupported_dialect",
+        "source_system": "hadoop_spark",
+        "difficulty": "unsupported_sql_dialect",
+        "dialect": "hive",
+        "sql": "select customer_id from dwh.customers",
+        "inputs": (table("hive.dwh.customers", ("customer_id",)),),
+        "outputs": (table("hive.mart.dim_customers", ("customer_id",)),),
+        "expected": {
+            ("hive.dwh.customers", "customer_id", "hive.mart.dim_customers", "customer_id"),
+        },
+    },
+    {
+        "name": "select_star_projection",
+        "source_system": "postgresql",
+        "difficulty": "hard_sql_construct",
+        "dialect": "postgres",
+        "sql": "select * from public.customers",
+        "inputs": (table("warehouse.public.customers", ("customer_id", "email")),),
+        "outputs": (table("warehouse.mart.customers_copy", ("customer_id", "email")),),
+        "expected": {
+            ("warehouse.public.customers", "customer_id", "warehouse.mart.customers_copy", "customer_id"),
+            ("warehouse.public.customers", "email", "warehouse.mart.customers_copy", "email"),
+        },
+    },
+    {
+        "name": "ambiguous_unqualified_join_column",
+        "source_system": "postgresql",
+        "difficulty": "hard_sql_construct",
+        "dialect": "postgres",
+        "sql": """
+            select id
+            from public.customers c
+            join public.orders o on c.id = o.id
+        """,
+        "inputs": (
+            table("warehouse.public.customers", ("id",)),
+            table("warehouse.public.orders", ("id",)),
+        ),
+        "outputs": (table("warehouse.mart.customer_orders", ("id", "__dataset__")),),
+        "expected": {
+            ("warehouse.public.customers", "id", "warehouse.mart.customer_orders", "id"),
+            ("warehouse.public.customers", "id", "warehouse.mart.customer_orders", "__dataset__"),
+            ("warehouse.public.orders", "id", "warehouse.mart.customer_orders", "__dataset__"),
+        },
+    },
+    {
+        "name": "cte_source_resolution",
+        "source_system": "postgresql",
+        "difficulty": "hard_sql_construct",
+        "dialect": "postgres",
+        "sql": """
+            with recent_orders as (
+                select customer_id, amount from public.orders where amount > 0
+            )
+            select r.customer_id, r.amount from recent_orders r
+        """,
+        "inputs": (table("warehouse.public.orders", ("customer_id", "amount")),),
+        "outputs": (table("warehouse.mart.recent_orders", ("customer_id", "amount")),),
+        "expected": {
+            ("warehouse.public.orders", "customer_id", "warehouse.mart.recent_orders", "customer_id"),
+            ("warehouse.public.orders", "amount", "warehouse.mart.recent_orders", "amount"),
+        },
+    },
+]
+
+
+class SyntheticRepository:
+    def __init__(self, table_count: int, attributes_per_table: int, fanout: int) -> None:
+        self.table_count = table_count
+        self.attributes_per_table = attributes_per_table
+        self.fanout = fanout
+        self._tables = [
+            {
+                "name": f"warehouse.public.t{i}",
+                "namespace": "warehouse",
+                "schema": "public",
+                "table_name": f"t{i}",
+            }
+            for i in range(table_count)
+        ]
+        self._attributes = [
+            {
+                "table_name": f"warehouse.public.t{i}",
+                "name": f"c{j}",
+                "data_type": "integer",
+            }
+            for i in range(table_count)
+            for j in range(attributes_per_table)
+        ]
+        self._transformations = self._build_transformations()
+
+    def tables(self) -> list[dict[str, Any]]:
+        return self._tables
+
+    def attributes(self) -> list[dict[str, Any]]:
+        return self._attributes
+
+    def transformations(self) -> list[dict[str, Any]]:
+        return self._transformations
+
+    def job_usage_counts(self) -> dict[str, int]:
+        return {
+            f"warehouse.public.t{i}": (self.table_count - i)
+            for i in range(self.table_count)
+        }
+
+    def _build_transformations(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for source_idx in range(self.table_count):
+            for step in range(1, self.fanout + 1):
+                target_idx = source_idx + step
+                if target_idx >= self.table_count:
+                    continue
+                for attr_idx in range(self.attributes_per_table):
+                    rows.append(
+                        {
+                            "job_name": f"job_{source_idx}_{target_idx}",
+                            "job_sql": None,
+                            "input_table": f"warehouse.public.t{source_idx}",
+                            "input_attribute": f"c{attr_idx}",
+                            "output_table": f"warehouse.public.t{target_idx}",
+                            "output_attribute": f"c{attr_idx}",
+                            "lineage_type": "SQL",
+                            "lineage_subtype": "IDENTITY",
+                            "lineage_description": None,
+                            "lineage_masking": None,
+                            "lineage_scope": "FIELD",
+                            "source": "synthetic",
+                            "expression": None,
+                        }
+                    )
+        return rows
+
+
+def evaluate_sql_parser() -> dict[str, Any]:
+    parser = SqlParser()
+    total_expected = 0
+    total_found = 0
+    total_true_positive = 0
+    cases: list[dict[str, Any]] = []
+
+    for case in SQL_CASES:
+        dialect = str(case["dialect"])
+        if parser.is_supported(dialect):
+            transformations = parser.extract_transformations(
+                case["sql"],
+                dialect,
+                case["inputs"],
+                case["outputs"],
+            )
+            extraction_status = "parsed"
+        else:
+            transformations = ()
+            extraction_status = "unsupported_dialect"
+        actual = {
+            (input_table, input_attr, item.output_table, item.output_attribute)
+            for item in transformations
+            for input_table, input_attr in item.input_attributes
+        }
+        expected = case["expected"]
+        true_positive = len(actual & expected)
+        total_expected += len(expected)
+        total_found += len(actual)
+        total_true_positive += true_positive
+        cases.append(
+            {
+                "name": case["name"],
+                "source_system": case["source_system"],
+                "difficulty": case["difficulty"],
+                "dialect": dialect,
+                "extraction_status": extraction_status,
+                "expected": len(expected),
+                "found": len(actual),
+                "true_positive": true_positive,
+                "false_positive": len(actual - expected),
+                "false_negative": len(expected - actual),
+                "precision": ratio(true_positive, len(actual)),
+                "recall": ratio(true_positive, len(expected)),
+            }
+        )
+
+    precision = ratio(total_true_positive, total_found)
+    recall = ratio(total_true_positive, total_expected)
+    return {
+        "cases": cases,
+        "by_source_system": aggregate_cases(cases, "source_system"),
+        "by_difficulty": aggregate_cases(cases, "difficulty"),
+        "precision": precision,
+        "recall": recall,
+        "f1": f1(precision, recall),
+    }
+
+
+def aggregate_cases(cases: list[dict[str, Any]], key: str) -> dict[str, dict[str, float | int]]:
+    grouped: dict[str, dict[str, int]] = {}
+    for case in cases:
+        item = grouped.setdefault(
+            str(case[key]),
+            {"expected": 0, "found": 0, "true_positive": 0, "false_positive": 0, "false_negative": 0},
+        )
+        item["expected"] += int(case["expected"])
+        item["found"] += int(case["found"])
+        item["true_positive"] += int(case["true_positive"])
+        item["false_positive"] += int(case["false_positive"])
+        item["false_negative"] += int(case["false_negative"])
+
+    result: dict[str, dict[str, float | int]] = {}
+    for group, values in sorted(grouped.items()):
+        precision = ratio(values["true_positive"], values["found"])
+        recall = ratio(values["true_positive"], values["expected"])
+        result[group] = {
+            **values,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1(precision, recall),
+        }
+    return result
+
+
+def evaluate_graph(table_counts: list[int], attributes_per_table: int, fanout: int, repeats: int) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for table_count in table_counts:
+        critical_times: list[float] = []
+        impact_times: list[float] = []
+        top_scores = []
+        affected_counts = []
+        for _ in range(repeats):
+            repository = SyntheticRepository(table_count, attributes_per_table, fanout)
+            graph = LineageGraph(repository)  # type: ignore[arg-type]
+
+            started = time.perf_counter()
+            critical = graph.critical_nodes()
+            critical_times.append(time.perf_counter() - started)
+            top_scores.append(asdict(critical[0]) if critical else {})
+
+            started = time.perf_counter()
+            paths = graph.impact_paths_from_attributes(
+                [
+                    AttributeChange(
+                        table_name="warehouse.public.t0",
+                        attribute_name="c0",
+                        change_type=ChangeType.MODIFIED,
+                    )
+                ]
+            )
+            impact_times.append(time.perf_counter() - started)
+            affected_counts.append(len({(path.affected_table, path.affected_attribute) for path in paths}))
+
+        results.append(
+            {
+                "tables": table_count,
+                "attributes_per_table": attributes_per_table,
+                "fanout": fanout,
+                "transformations": len(SyntheticRepository(table_count, attributes_per_table, fanout).transformations()),
+                "critical_nodes_ms_avg": round(statistics.mean(critical_times) * 1000, 3),
+                "impact_analysis_ms_avg": round(statistics.mean(impact_times) * 1000, 3),
+                "affected_attribute_points": round(statistics.mean(affected_counts), 2),
+                "top_critical_node": top_scores[-1],
+            }
+        )
+    return results
+
+
+def ratio(numerator: int, denominator: int) -> float:
+    return round(numerator / denominator, 4) if denominator else 0.0
+
+
+def f1(precision: float, recall: float) -> float:
+    return round(2 * precision * recall / (precision + recall), 4) if precision + recall else 0.0
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Evaluate Lineage Analyzer effectiveness on reproducible synthetic cases.")
+    parser.add_argument("--tables", default="25,50,100", help="Comma-separated synthetic graph sizes.")
+    parser.add_argument("--attributes", type=int, default=8, help="Attributes per synthetic table.")
+    parser.add_argument("--fanout", type=int, default=2, help="Outgoing edges per synthetic table.")
+    parser.add_argument("--repeats", type=int, default=5, help="Measurement repeats per graph size.")
+    args = parser.parse_args()
+
+    table_counts = [int(value.strip()) for value in args.tables.split(",") if value.strip()]
+    result = {
+        "sql_lineage_quality": evaluate_sql_parser(),
+        "graph_analysis_performance": evaluate_graph(table_counts, args.attributes, args.fanout, args.repeats),
+    }
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

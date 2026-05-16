@@ -15,6 +15,8 @@ class SqlParser:
         "sqlite",
         "bigquery",
         "snowflake",
+        "hive",
+        "clickhouse",
     }
 
     def is_supported(self, dialect: str | None) -> bool:
