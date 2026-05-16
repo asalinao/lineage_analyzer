@@ -26,133 +26,147 @@ def table(name: str, attributes: tuple[str, ...]) -> TableSpec:
     )
 
 
+SYSTEMS = {
+    "postgresql": {"label": "PostgreSQL", "dialect": "postgres", "namespace": "warehouse", "source_schema": "public", "target_schema": "mart"},
+    "greenplum": {"label": "Greenplum", "dialect": "postgresql", "namespace": "warehouse", "source_schema": "public", "target_schema": "mart"},
+    "clickhouse": {"label": "ClickHouse", "dialect": "clickhouse", "namespace": "clickhouse", "source_schema": "analytics", "target_schema": "mart"},
+    "hadoop_spark": {"label": "Hadoop/Hive", "dialect": "hive", "namespace": "hive", "source_schema": "dwh", "target_schema": "mart"},
+}
+
+
+def qname(system: str, schema: str, table_name: str) -> str:
+    config = SYSTEMS[system]
+    return f"{config['namespace']}.{schema}.{table_name}"
+
+
+def make_case(system: str, scenario: str) -> dict[str, Any]:
+    config = SYSTEMS[system]
+    source_schema = str(config["source_schema"])
+    target_schema = str(config["target_schema"])
+    source_customers = qname(system, source_schema, "customers")
+    source_orders = qname(system, source_schema, "orders")
+
+    if scenario == "identity_projection":
+        return {
+            "name": f"{system}_identity_projection",
+            "source_system": system,
+            "difficulty": "basic_supported",
+            "dialect": config["dialect"],
+            "sql": f"select customer_id, email from {source_schema}.customers",
+            "inputs": (table(source_customers, ("customer_id", "email")),),
+            "outputs": (table(qname(system, target_schema, "dim_customers"), ("customer_id", "email")),),
+            "expected": {
+                (source_customers, "customer_id", qname(system, target_schema, "dim_customers"), "customer_id"),
+                (source_customers, "email", qname(system, target_schema, "dim_customers"), "email"),
+            },
+        }
+    if scenario == "join_and_aggregation":
+        return {
+            "name": f"{system}_join_and_aggregation",
+            "source_system": system,
+            "difficulty": "basic_supported",
+            "dialect": config["dialect"],
+            "sql": f"""
+                select c.customer_id, sum(o.amount) as total_amount
+                from {source_schema}.customers c
+                join {source_schema}.orders o on c.customer_id = o.customer_id
+                group by c.customer_id
+            """,
+            "inputs": (
+                table(source_customers, ("customer_id", "email")),
+                table(source_orders, ("customer_id", "amount")),
+            ),
+            "outputs": (table(qname(system, target_schema, "customer_revenue"), ("customer_id", "total_amount", "__dataset__")),),
+            "expected": {
+                (source_customers, "customer_id", qname(system, target_schema, "customer_revenue"), "customer_id"),
+                (source_orders, "amount", qname(system, target_schema, "customer_revenue"), "total_amount"),
+                (source_customers, "customer_id", qname(system, target_schema, "customer_revenue"), "__dataset__"),
+                (source_orders, "customer_id", qname(system, target_schema, "customer_revenue"), "__dataset__"),
+            },
+        }
+    if scenario == "derived_expression":
+        return {
+            "name": f"{system}_derived_expression",
+            "source_system": system,
+            "difficulty": "basic_supported",
+            "dialect": config["dialect"],
+            "sql": f"select order_id, amount * 1.2 as amount_with_tax from {source_schema}.orders",
+            "inputs": (table(source_orders, ("order_id", "amount")),),
+            "outputs": (table(qname(system, target_schema, "orders_tax"), ("order_id", "amount_with_tax")),),
+            "expected": {
+                (source_orders, "order_id", qname(system, target_schema, "orders_tax"), "order_id"),
+                (source_orders, "amount", qname(system, target_schema, "orders_tax"), "amount_with_tax"),
+            },
+        }
+    if scenario == "select_star_projection":
+        return {
+            "name": f"{system}_select_star_projection",
+            "source_system": system,
+            "difficulty": "hard_sql_construct",
+            "dialect": config["dialect"],
+            "sql": f"select * from {source_schema}.customers",
+            "inputs": (table(source_customers, ("customer_id", "email")),),
+            "outputs": (table(qname(system, target_schema, "customers_copy"), ("customer_id", "email")),),
+            "expected": {
+                (source_customers, "customer_id", qname(system, target_schema, "customers_copy"), "customer_id"),
+                (source_customers, "email", qname(system, target_schema, "customers_copy"), "email"),
+            },
+        }
+    if scenario == "ambiguous_unqualified_join_column":
+        return {
+            "name": f"{system}_ambiguous_unqualified_join_column",
+            "source_system": system,
+            "difficulty": "hard_sql_construct",
+            "dialect": config["dialect"],
+            "sql": f"""
+                select id
+                from {source_schema}.customers c
+                join {source_schema}.orders o on c.id = o.id
+            """,
+            "inputs": (
+                table(source_customers, ("id",)),
+                table(source_orders, ("id",)),
+            ),
+            "outputs": (table(qname(system, target_schema, "customer_orders"), ("id", "__dataset__")),),
+            "expected": {
+                (source_customers, "id", qname(system, target_schema, "customer_orders"), "id"),
+                (source_customers, "id", qname(system, target_schema, "customer_orders"), "__dataset__"),
+                (source_orders, "id", qname(system, target_schema, "customer_orders"), "__dataset__"),
+            },
+        }
+    if scenario == "cte_source_resolution":
+        return {
+            "name": f"{system}_cte_source_resolution",
+            "source_system": system,
+            "difficulty": "hard_sql_construct",
+            "dialect": config["dialect"],
+            "sql": f"""
+                with recent_orders as (
+                    select customer_id, amount from {source_schema}.orders where amount > 0
+                )
+                select r.customer_id, r.amount from recent_orders r
+            """,
+            "inputs": (table(source_orders, ("customer_id", "amount")),),
+            "outputs": (table(qname(system, target_schema, "recent_orders"), ("customer_id", "amount")),),
+            "expected": {
+                (source_orders, "customer_id", qname(system, target_schema, "recent_orders"), "customer_id"),
+                (source_orders, "amount", qname(system, target_schema, "recent_orders"), "amount"),
+            },
+        }
+    raise ValueError(f"Unknown scenario: {scenario}")
+
+
 SQL_CASES = [
-    {
-        "name": "postgres_identity_projection",
-        "source_system": "postgresql",
-        "difficulty": "basic_supported",
-        "dialect": "postgres",
-        "sql": "select customer_id, email from public.customers",
-        "inputs": (table("warehouse.public.customers", ("customer_id", "email")),),
-        "outputs": (table("warehouse.mart.dim_customers", ("customer_id", "email")),),
-        "expected": {
-            ("warehouse.public.customers", "customer_id", "warehouse.mart.dim_customers", "customer_id"),
-            ("warehouse.public.customers", "email", "warehouse.mart.dim_customers", "email"),
-        },
-    },
-    {
-        "name": "greenplum_join_and_aggregation",
-        "source_system": "greenplum",
-        "difficulty": "basic_supported",
-        "dialect": "postgresql",
-        "sql": """
-            select c.customer_id, sum(o.amount) as total_amount
-            from public.customers c
-            join public.orders o on c.customer_id = o.customer_id
-            group by c.customer_id
-        """,
-        "inputs": (
-            table("warehouse.public.customers", ("customer_id", "email")),
-            table("warehouse.public.orders", ("customer_id", "amount")),
-        ),
-        "outputs": (table("warehouse.mart.customer_revenue", ("customer_id", "total_amount", "__dataset__")),),
-        "expected": {
-            ("warehouse.public.customers", "customer_id", "warehouse.mart.customer_revenue", "customer_id"),
-            ("warehouse.public.orders", "amount", "warehouse.mart.customer_revenue", "total_amount"),
-            ("warehouse.public.customers", "customer_id", "warehouse.mart.customer_revenue", "__dataset__"),
-            ("warehouse.public.orders", "customer_id", "warehouse.mart.customer_revenue", "__dataset__"),
-        },
-    },
-    {
-        "name": "postgres_derived_expression",
-        "source_system": "postgresql",
-        "difficulty": "basic_supported",
-        "dialect": "postgres",
-        "sql": "select order_id, amount * 1.2 as amount_with_tax from public.orders",
-        "inputs": (table("warehouse.public.orders", ("order_id", "amount")),),
-        "outputs": (table("warehouse.mart.orders_tax", ("order_id", "amount_with_tax")),),
-        "expected": {
-            ("warehouse.public.orders", "order_id", "warehouse.mart.orders_tax", "order_id"),
-            ("warehouse.public.orders", "amount", "warehouse.mart.orders_tax", "amount_with_tax"),
-        },
-    },
-    {
-        "name": "clickhouse_basic_supported",
-        "source_system": "clickhouse",
-        "difficulty": "basic_supported",
-        "dialect": "clickhouse",
-        "sql": "select user_id, count() as event_count from analytics.events group by user_id",
-        "inputs": (table("clickhouse.analytics.events", ("user_id", "event_count")),),
-        "outputs": (table("clickhouse.mart.user_events", ("user_id", "event_count")),),
-        "expected": {
-            ("clickhouse.analytics.events", "user_id", "clickhouse.mart.user_events", "user_id"),
-            ("clickhouse.analytics.events", "event_count", "clickhouse.mart.user_events", "event_count"),
-        },
-    },
-    {
-        "name": "hive_basic_supported",
-        "source_system": "hadoop_spark",
-        "difficulty": "basic_supported",
-        "dialect": "hive",
-        "sql": "select customer_id from dwh.customers",
-        "inputs": (table("hive.dwh.customers", ("customer_id",)),),
-        "outputs": (table("hive.mart.dim_customers", ("customer_id",)),),
-        "expected": {
-            ("hive.dwh.customers", "customer_id", "hive.mart.dim_customers", "customer_id"),
-        },
-    },
-    {
-        "name": "select_star_projection",
-        "source_system": "postgresql",
-        "difficulty": "hard_sql_construct",
-        "dialect": "postgres",
-        "sql": "select * from public.customers",
-        "inputs": (table("warehouse.public.customers", ("customer_id", "email")),),
-        "outputs": (table("warehouse.mart.customers_copy", ("customer_id", "email")),),
-        "expected": {
-            ("warehouse.public.customers", "customer_id", "warehouse.mart.customers_copy", "customer_id"),
-            ("warehouse.public.customers", "email", "warehouse.mart.customers_copy", "email"),
-        },
-    },
-    {
-        "name": "ambiguous_unqualified_join_column",
-        "source_system": "postgresql",
-        "difficulty": "hard_sql_construct",
-        "dialect": "postgres",
-        "sql": """
-            select id
-            from public.customers c
-            join public.orders o on c.id = o.id
-        """,
-        "inputs": (
-            table("warehouse.public.customers", ("id",)),
-            table("warehouse.public.orders", ("id",)),
-        ),
-        "outputs": (table("warehouse.mart.customer_orders", ("id", "__dataset__")),),
-        "expected": {
-            ("warehouse.public.customers", "id", "warehouse.mart.customer_orders", "id"),
-            ("warehouse.public.customers", "id", "warehouse.mart.customer_orders", "__dataset__"),
-            ("warehouse.public.orders", "id", "warehouse.mart.customer_orders", "__dataset__"),
-        },
-    },
-    {
-        "name": "cte_source_resolution",
-        "source_system": "postgresql",
-        "difficulty": "hard_sql_construct",
-        "dialect": "postgres",
-        "sql": """
-            with recent_orders as (
-                select customer_id, amount from public.orders where amount > 0
-            )
-            select r.customer_id, r.amount from recent_orders r
-        """,
-        "inputs": (table("warehouse.public.orders", ("customer_id", "amount")),),
-        "outputs": (table("warehouse.mart.recent_orders", ("customer_id", "amount")),),
-        "expected": {
-            ("warehouse.public.orders", "customer_id", "warehouse.mart.recent_orders", "customer_id"),
-            ("warehouse.public.orders", "amount", "warehouse.mart.recent_orders", "amount"),
-        },
-    },
+    make_case(system, scenario)
+    for scenario in (
+        "identity_projection",
+        "join_and_aggregation",
+        "derived_expression",
+        "select_star_projection",
+        "ambiguous_unqualified_join_column",
+        "cte_source_resolution",
+    )
+    for system in ("postgresql", "greenplum", "clickhouse", "hadoop_spark")
 ]
 
 
