@@ -103,9 +103,9 @@ SQL_CASES = [
         },
     },
     {
-        "name": "clickhouse_unsupported_dialect",
+        "name": "clickhouse_basic_supported",
         "source_system": "clickhouse",
-        "difficulty": "unsupported_sql_dialect",
+        "difficulty": "basic_supported",
         "dialect": "clickhouse",
         "sql": "select user_id, count() as event_count from analytics.events group by user_id",
         "inputs": (table("clickhouse.analytics.events", ("user_id", "event_count")),),
@@ -116,9 +116,9 @@ SQL_CASES = [
         },
     },
     {
-        "name": "hive_unsupported_dialect",
+        "name": "hive_basic_supported",
         "source_system": "hadoop_spark",
-        "difficulty": "unsupported_sql_dialect",
+        "difficulty": "basic_supported",
         "dialect": "hive",
         "sql": "select customer_id from dwh.customers",
         "inputs": (table("hive.dwh.customers", ("customer_id",)),),
