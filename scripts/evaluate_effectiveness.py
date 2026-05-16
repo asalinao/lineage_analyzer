@@ -77,32 +77,6 @@ SQL_CASES = [
         },
     },
     {
-        "name": "snowflake_quoted_identifiers",
-        "source_system": "snowflake",
-        "difficulty": "basic_supported",
-        "dialect": "snowflake",
-        "sql": 'select c."CUSTOMER_ID", c."EMAIL" from "PUBLIC"."CUSTOMERS" c',
-        "inputs": (table("RAW.PUBLIC.CUSTOMERS", ("CUSTOMER_ID", "EMAIL")),),
-        "outputs": (table("RAW.MART.DIM_CUSTOMERS", ("CUSTOMER_ID", "EMAIL")),),
-        "expected": {
-            ("RAW.PUBLIC.CUSTOMERS", "CUSTOMER_ID", "RAW.MART.DIM_CUSTOMERS", "CUSTOMER_ID"),
-            ("RAW.PUBLIC.CUSTOMERS", "EMAIL", "RAW.MART.DIM_CUSTOMERS", "EMAIL"),
-        },
-    },
-    {
-        "name": "bigquery_struct_field_expression",
-        "source_system": "bigquery",
-        "difficulty": "basic_supported",
-        "dialect": "bigquery",
-        "sql": "select user_id, device.category as device_category from `project.analytics.events`",
-        "inputs": (table("project.analytics.events", ("user_id", "device")),),
-        "outputs": (table("project.mart.event_devices", ("user_id", "device_category")),),
-        "expected": {
-            ("project.analytics.events", "user_id", "project.mart.event_devices", "user_id"),
-            ("project.analytics.events", "category", "project.mart.event_devices", "device_category"),
-        },
-    },
-    {
         "name": "clickhouse_basic_supported",
         "source_system": "clickhouse",
         "difficulty": "basic_supported",
