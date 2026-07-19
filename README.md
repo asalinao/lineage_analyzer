@@ -15,15 +15,50 @@ Lineage Analyzer — дипломный проект для сбора, хран
 - расчет критичности узлов графа;
 - ролевая модель пользователей.
 
-## 🎨 UI
+## 🎨 UI Preview
 
-| Функция | Скриншот |
-|---------|----------|
-| **📊 Граф таблиц и задач** | <img src="..." width="450"> |
-| **🎯 Выбор узла** | <img src="..." width="300"> |
-| **🔗 Выбор ребра** | <img src="..." width="300"> |
-| **📝 Отчет изменений** | <img src="..." width="450"> |
-| **🚨 Критические узлы** | <img src="..." width="450"> |
+<table>
+<tr>
+<td align="center">
+
+**📊 Граф**
+
+<img src="https://github.com/user-attachments/assets/ba5c7b5e-06d2-4c97-abe4-18a290e55e69" width="450">
+
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
+**🎯 Выбор элементов**
+
+<img src="https://github.com/user-attachments/assets/a49ab95a-021c-4683-9a56-42d82c4d85e9" width="250">
+<img src="https://github.com/user-attachments/assets/8ae544b3-ed56-4034-98d5-1367aa7c70b2" width="250">
+
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
+**📝 Отчет**
+
+<img src="https://github.com/user-attachments/assets/0704c65f-cb6e-413d-8183-02c9fbb1f939" width="450">
+
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
+**🚨 Критические узлы**
+
+<img src="https://github.com/user-attachments/assets/86982932-afea-4c0d-8e27-e728572ce21a" width="450">
+
+</td>
+</tr>
+</table>
 
 ## Роли
 
