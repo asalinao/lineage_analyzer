@@ -15,6 +15,39 @@ Lineage Analyzer — дипломный проект для сбора, хран
 - расчет критичности узлов графа;
 - ролевая модель пользователей.
 
+## UI
+
+### 📊 Граф таблиц и задач
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/ba5c7b5e-06d2-4c97-abe4-18a290e55e69" alt="Граф таблиц и задач" width="100%">
+</p>
+
+---
+
+### 🎯 Выбор узла или ребра графа
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/a49ab95a-021c-4683-9a56-42d82c4d85e9" alt="Выбор узла графа" width="48%">
+  <img src="https://github.com/user-attachments/assets/8ae544b3-ed56-4034-98d5-1367aa7c70b2" alt="Выбор ребра графа" width="43%">
+</p>
+
+---
+
+### 📝 Отчет об изменениях
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/0704c65f-cb6e-413d-8183-02c9fbb1f939" alt="Отчет об изменениях" width="90%">
+</p>
+
+---
+
+### 🚨 Подсветка критических узлов
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/86982932-afea-4c0d-8e27-e728572ce21a" alt="Подсветка критических узлов" width="90%">
+</p>
+
 ## Роли
 
 В системе есть две роли:
@@ -239,38 +272,6 @@ Hadoop/Hive-таблицы читаются через Spark:
 - выполняется `SHOW TABLES IN <schema>`;
 - для каждой таблицы выполняется `DESCRIBE TABLE <schema>.<table>`.
 
-## UI
-
-### 📊 Граф таблиц и задач
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/ba5c7b5e-06d2-4c97-abe4-18a290e55e69" alt="Граф таблиц и задач" width="100%">
-</p>
-
----
-
-### 🎯 Выбор узла или ребра графа
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/a49ab95a-021c-4683-9a56-42d82c4d85e9" alt="Выбор узла графа" width="48%">
-  <img src="https://github.com/user-attachments/assets/8ae544b3-ed56-4034-98d5-1367aa7c70b2" alt="Выбор ребра графа" width="43%">
-</p>
-
----
-
-### 📝 Отчет об изменениях
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/0704c65f-cb6e-413d-8183-02c9fbb1f939" alt="Отчет об изменениях" width="90%">
-</p>
-
----
-
-### 🚨 Подсветка критических узлов
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/86982932-afea-4c0d-8e27-e728572ce21a" alt="Подсветка критических узлов" width="90%">
-</p>
 
 ## Логи
 
@@ -281,12 +282,6 @@ Hadoop/Hive-таблицы читаются через Spark:
 - ошибки обработки OpenLineage events;
 - ошибки синхронизации;
 - сообщение о завершении sync schedule.
-
-В Docker консольный вывод можно посмотреть так:
-
-```bash
-docker compose logs app
-```
 
 ## Структура Проекта
 
