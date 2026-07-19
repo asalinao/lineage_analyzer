@@ -243,17 +243,17 @@ Hadoop/Hive-таблицы читаются через Spark:
 
 Web-интерфейс предоставляет:
 
-- граф таблиц и jobs;
+### Граф таблиц и задач
   <img width="1462" height="781" alt="image" src="https://github.com/user-attachments/assets/ba5c7b5e-06d2-4c97-abe4-18a290e55e69" />
-- выбор узла или ребра графа;
-- свойства выбранного объекта;
-- список атрибутов таблицы;
-- раскрываемый column-level lineage для атрибутов;
-- SQL-код выбранной job;
-- версии таблиц и jobs;
-- отчет изменений;
-- подсветку критических узлов для `data_engineer`;
-- настройку расписаний синхронизации для `data_engineer`.
+### Выбор узла или ребра графа, свойства выбранного объекта, column-level lineage для атрибутов, SQL-код выбранной задачи
+#### Пример для задачи
+<img width="908" height="803" alt="image" src="https://github.com/user-attachments/assets/a49ab95a-021c-4683-9a56-42d82c4d85e9" />
+#### Пример для таблицы
+<img width="803" height="669" alt="image" src="https://github.com/user-attachments/assets/8ae544b3-ed56-4034-98d5-1367aa7c70b2" />
+### Отчет изменений
+<img width="1130" height="491" alt="image" src="https://github.com/user-attachments/assets/0704c65f-cb6e-413d-8183-02c9fbb1f939" />
+### Подсветку критических узлов
+<img width="1130" height="491" alt="image" src="https://github.com/user-attachments/assets/86982932-afea-4c0d-8e27-e728572ce21a" />
 
 ## Логи
 
