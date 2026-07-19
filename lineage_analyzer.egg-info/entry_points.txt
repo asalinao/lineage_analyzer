@@ -1,2 +1,0 @@
-[console_scripts]
-lineage-analyzer = lineage_analyzer.cli:main
