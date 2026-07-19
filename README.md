@@ -45,7 +45,7 @@ Lineage Analyzer — дипломный проект для сбора, хран
 **🚨 Подсветка критических узлов**
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/86982932-afea-4c0d-8e27-e728572ce21a" alt="Critical Nodes" width="700">
+  <img width="1033" height="431" alt="image" src="https://github.com/user-attachments/assets/71316bc2-3c2d-47e1-9117-9787ed65d5ca" />
 </p>
 
 ## Роли
